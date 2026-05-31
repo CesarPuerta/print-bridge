@@ -1,0 +1,55 @@
+{
+  "name": "soluciona-print-bridge",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Cegel Print Bridge — daemon local que recibe trabajos ESC/POS desde la web app y los envía a impresoras térmicas (USB / TCP / Serial) y abre el cajón monedero.",
+  "scripts": {
+    "tauri": "tauri",
+    "dev": "tauri dev",
+    "build": "tauri build",
+    "build:unsigned": "tauri build --config '{\"bundle\":{\"macOS\":{\"signingIdentity\":\"-\"}}}'",
+    "lint": "eslint src/",
+    "lint:fix": "eslint src/ --fix",
+    "prettier": "prettier --check .",
+    "prettier:fix": "prettier --write .",
+    "format": "prettier --write . && eslint src/ --fix",
+    "rust:fmt": "cd src-tauri && cargo fmt",
+    "rust:lint": "cd src-tauri && cargo clippy -- -D warnings",
+    "prepare": "[ \"$NODE_ENV\" != \"production\" ] && husky || true",
+    "commit": "git add . && git commit",
+    "commit:help": "echo 'Formato: <type>(<scope>): <description>' && echo 'Tipos: feat, fix, docs, style, refactor, perf, test, chore, ci, build, revert'"
+  },
+  "devDependencies": {
+    "@commitlint/cli": "^21.0.1",
+    "@commitlint/config-conventional": "^21.0.1",
+    "@eslint/js": "^10.0.1",
+    "@tauri-apps/cli": "^2.0.0",
+    "eslint": "^10.1.0",
+    "globals": "^15.14.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.2.7",
+    "prettier": "^3.1.1"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^2.0.0",
+    "@tauri-apps/plugin-autostart": "^2.0.0",
+    "@tauri-apps/plugin-opener": "^2.0.0",
+    "@tauri-apps/plugin-shell": "^2.0.0"
+  },
+  "lint-staged": {
+    "*.{js,jsx,mjs,cjs}": [
+      "prettier --write",
+      "eslint --fix"
+    ],
+    "*.{json,md,yml,yaml,html,css}": [
+      "prettier --write"
+    ],
+    "src-tauri/**/*.rs": [
+      "bash -c 'cd src-tauri && cargo fmt --'"
+    ]
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}
