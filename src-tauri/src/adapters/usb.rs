@@ -80,11 +80,10 @@ pub fn send(conn: &Connection, bytes: &[u8]) -> Result<()> {
 
     let _ = handle.release_interface(iface);
 
-    log::info!(
-        "USB → vid={:04x} pid={:04x} ep={:#x} ({} bytes)",
+    log::debug!(
+        "USB OK (vid={:04x} pid={:04x}, {} bytes)",
         vendor_id,
         product_id,
-        endpoint,
         written
     );
 

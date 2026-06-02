@@ -15,6 +15,10 @@ use tower_http::cors::{AllowOrigin, CorsLayer};
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
+/// Límite duro al tamaño del cuerpo de un job (base64 incluido). 5 MB cubre
+/// imágenes ESC/POS razonables y evita DoS por payloads enormes.
+const MAX_BODY_BYTES: usize = 5 * 1024 * 1024;
+
 pub struct AppState {
     pub config: BridgeConfig,
 }
@@ -43,6 +47,7 @@ pub fn build_router(config: BridgeConfig) -> Router {
         .route("/print", post(print_job))
         .route("/drawer-kick", post(drawer_kick))
         .with_state(state)
+        .layer(tower_http::limit::RequestBodyLimitLayer::new(MAX_BODY_BYTES))
         .layer(cors)
 }
 
@@ -88,11 +93,25 @@ async fn drawer_kick(
     process_job(job, "drawer-kick").map(Json)
 }
 
-/// Si el bridge está vinculado a un negocio, exige que el caller declare ese
-/// mismo businessId vía header `X-Cegel-Business`. Esto evita que la web app
-/// de otro negocio (corriendo en el mismo equipo, mismo origen CORS) le ordene
-/// imprimir por accidente al bridge.
+/// Valida que el llamante sea legítimo:
+///   1. Origin siempre debe estar en la allowlist (defensa adicional frente a CSRF
+///      desde sitios maliciosos que no envían preflight — fetch simple no requiere CORS
+///      pero sí envía Origin).
+///   2. Si el bridge está pareado, el header X-Cegel-Business debe coincidir.
 fn enforce_business(state: &AppState, headers: &HeaderMap) -> Result<(), AppError> {
+    let origin = headers
+        .get("origin")
+        .and_then(|h| h.to_str().ok())
+        .unwrap_or("");
+    let origin_allowed = !origin.is_empty()
+        && state.config.allowed_origins.iter().any(|o| o == origin);
+    if !origin_allowed {
+        return Err(AppError {
+            status: StatusCode::FORBIDDEN,
+            message: "Origin no autorizado".into(),
+        });
+    }
+
     let Some(paired_biz) = state.config.paired_business_id.as_deref() else {
         return Ok(()); // bridge sin vincular: permite (modo prueba)
     };
@@ -113,6 +132,19 @@ fn enforce_business(state: &AppState, headers: &HeaderMap) -> Result<(), AppErro
 }
 
 fn process_job(job: PrintJob, kind: &str) -> Result<JobResponse, AppError> {
+    // Validar estructura básica antes de decodificar payloads grandes.
+    if job.printer_id.is_empty() || job.printer_id.len() > 100 {
+        return Err(AppError::bad_request("printerId inválido"));
+    }
+    if let Some(l) = &job.label {
+        if l.len() > 500 {
+            return Err(AppError::bad_request("label demasiado largo"));
+        }
+    }
+    if job.bytes_base64.len() > MAX_BODY_BYTES {
+        return Err(AppError::bad_request("payload demasiado grande"));
+    }
+
     let bytes = general_purpose::STANDARD
         .decode(job.bytes_base64.as_bytes())
         .map_err(|e| AppError::bad_request(format!("bytesBase64 inválido: {e}")))?;
@@ -125,9 +157,8 @@ fn process_job(job: PrintJob, kind: &str) -> Result<JobResponse, AppError> {
 
     let job_id = uuid::Uuid::new_v4().to_string();
     log::info!(
-        "[{kind}] printerId={} label={:?} bytes={} jobId={}",
+        "[{kind}] printerId={} bytes={} jobId={}",
         job.printer_id,
-        job.label,
         bytes.len(),
         job_id
     );

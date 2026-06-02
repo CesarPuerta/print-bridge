@@ -26,7 +26,7 @@ serde_json = "1"
 # HTTP server
 axum = "0.7"
 tokio = { version = "1", features = ["full"] }
-tower-http = { version = "0.5", features = ["cors"] }
+tower-http = { version = "0.5", features = ["cors", "limit"] }
 
 # HTTP client (pairing + heartbeat hacia el backend de Cegel)
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }

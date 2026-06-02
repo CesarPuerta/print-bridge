@@ -88,8 +88,10 @@ pub fn new_state() -> SharedState {
 /// claime el código en la web. Cuando se confirma, persiste el token.
 pub async fn run_pairing(state: SharedState) -> Result<()> {
     let cfg = config::load();
+    cfg.validate_api_base().context("backend URL inválida")?;
     let client = reqwest::Client::builder()
         .timeout(POLL_TIMEOUT)
+        .use_rustls_tls()
         .build()
         .context("no se pudo crear cliente HTTP")?;
 
@@ -210,7 +212,15 @@ pub async fn run_heartbeat() {
         let Some(token) = cfg.device_token.clone() else {
             continue;
         };
-        let client = match reqwest::Client::builder().timeout(POLL_TIMEOUT).build() {
+        if cfg.validate_api_base().is_err() {
+            log::error!("heartbeat omitido: cegel_api_base debe ser HTTPS en producción");
+            continue;
+        }
+        let client = match reqwest::Client::builder()
+            .timeout(POLL_TIMEOUT)
+            .use_rustls_tls()
+            .build()
+        {
             Ok(c) => c,
             Err(_) => continue,
         };

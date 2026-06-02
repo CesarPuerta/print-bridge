@@ -134,9 +134,25 @@ pub fn run() {
 
 // ─── Comandos expuestos al frontend ────────────────────────────────────────
 
+#[derive(serde::Serialize)]
+struct SafeConfig {
+    port: u16,
+    allowed_origins: Vec<String>,
+    paired_business_id: Option<String>,
+    device_id: String,
+    cegel_api_base: String,
+}
+
 #[tauri::command]
-fn cmd_get_config() -> Result<config::BridgeConfig, String> {
-    Ok(config::load())
+fn cmd_get_config() -> Result<SafeConfig, String> {
+    let cfg = config::load();
+    Ok(SafeConfig {
+        port: cfg.port,
+        allowed_origins: cfg.allowed_origins,
+        paired_business_id: cfg.paired_business_id,
+        device_id: cfg.device_id,
+        cegel_api_base: cfg.cegel_api_base,
+    })
 }
 
 #[tauri::command]

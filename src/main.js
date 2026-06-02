@@ -5,9 +5,7 @@ const $ = id => document.getElementById(id);
 async function refresh() {
   const status = await invoke('cmd_get_status');
   $('status-dot').className = 'dot ' + (status.ok ? 'dot--on' : 'dot--off');
-  $('status-text').textContent = status.ok
-    ? `Activo en http://127.0.0.1:${status.port}`
-    : 'Detenido';
+  $('status-text').textContent = status.ok ? 'Activo' : 'Detenido';
   $('port').textContent = status.port;
   $('version').textContent = status.version;
   $('paired').textContent = status.paired ? 'Sí' : 'No';
