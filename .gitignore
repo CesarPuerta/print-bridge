@@ -1,0 +1,32 @@
+# Bundle artifacts
+target/
+**/target/
+
+# Tauri generated
+src-tauri/gen/
+
+# Node
+node_modules/
+dist/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.idea/
+.vscode/
+
+# Logs
+*.log
+
+# ── Claves de firma (NUNCA deben entrar al repo) ────────────────────────────
+# La clave privada vive en ~/.tauri/ (fuera del repo), pero por si acaso:
+*.key
+*.pem
+*.p12
+*.pfx
+# Tampoco archivos de entorno con secretos
+.env
+.env.*
+!.env.example
