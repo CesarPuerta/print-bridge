@@ -1,0 +1,61 @@
+[package]
+name = "soluciona-print-bridge"
+version = "0.3.0"
+description = "Cegel Print Bridge — daemon local ESC/POS + Windows native USB"
+authors = ["Cegel"]
+edition = "2021"
+
+[lib]
+name = "soluciona_print_bridge_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["tray-icon"] }
+tauri-plugin-shell = "2"
+tauri-plugin-opener = "2"
+tauri-plugin-autostart = "2"
+tauri-plugin-process = "2"
+
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# HTTP server
+axum = "0.7"
+tokio = { version = "1", features = ["full"] }
+tower-http = { version = "0.5", features = ["cors", "limit"] }
+
+# HTTP client (pairing + heartbeat hacia el backend de Cegel)
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+
+# Hostname
+gethostname = "0.4"
+
+# Adapters
+rusb = { version = "0.9", features = ["vendored"] }  # Compila libusb desde fuente (estático, sin dep de Homebrew)
+serialport = "4"       # Serial
+
+# Utilidades
+base64 = "0.22"
+anyhow = "1"
+thiserror = "1"
+log = "0.4"
+env_logger = "0.11"
+dirs = "5"
+uuid = { version = "1", features = ["v4"] }
+
+# Windows native USB (sin libusb/Zadig)
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.58", features = [
+  "Win32_Devices_DeviceAndDriverInstallation",
+  "Win32_Storage_FileSystem",
+  "Win32_Foundation",
+  "Win32_Security",
+  "Win32_System_IO",
+] }
+
+[features]
+default = ["custom-protocol"]
+custom-protocol = ["tauri/custom-protocol"]

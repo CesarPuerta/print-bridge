@@ -1,0 +1,107 @@
+name: Release Cegel Print Bridge
+
+# Se dispara cuando empujas un tag tipo v0.1.0, v1.2.3, etc.
+on:
+  push:
+    tags:
+      - 'v*'
+
+# Permitimos al action crear releases y subir binarios.
+permissions:
+  contents: write
+
+jobs:
+  publish-tauri:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # macOS Apple Silicon
+          - platform: 'macos-latest'
+            args: '--target aarch64-apple-darwin'
+          # macOS Intel
+          - platform: 'macos-latest'
+            args: '--target x86_64-apple-darwin'
+          # Linux x64
+          - platform: 'ubuntu-22.04'
+            args: ''
+          # Windows x64
+          - platform: 'windows-latest'
+            args: ''
+
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: './src-tauri -> target'
+
+      - name: Install Linux deps
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            libusb-1.0-0-dev \
+            libudev-dev \
+            libssl-dev \
+            patchelf
+
+      - name: Install JS deps
+        run: npm ci
+
+      # Build + firma + crea/actualiza el Release + sube los bundles.
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: 'Cegel Print Bridge ${{ github.ref_name }}'
+          releaseBody: |
+            ## 📥 ¿Cuál descargar?
+
+            | Sistema | Chip | Archivo |
+            |---|---|---|
+            | 🍎 **macOS** | Apple Silicon (M1/M2/M3) | `aarch64.dmg` |
+            | 🍎 **macOS** | Intel | `x64.dmg` |
+            | 🐧 **Linux** | Ubuntu/Debian/Mint | `amd64.deb` |
+            | 🐧 **Linux** | Fedora/RHEL | `x86_64.rpm` |
+            | 🐧 **Linux** | Cualquiera (portable) | `amd64.AppImage` |
+            | 🪟 **Windows** | x64 (instalador) | `x64-setup.exe` |
+            | 🪟 **Windows** | x64 (empresas) | `x64_en-US.msi` |
+
+            > 💡 **Mac:** Abre el `.dmg` y arrastra el app a Aplicaciones. Si Gatekeeper lo bloquea, haz clic derecho > Abrir.
+          releaseDraft: false
+          prerelease: false
+          args: ${{ matrix.args }}
+
+      # Elimina artefactos innecesarios del release (.app.tar.gz + latest.json del updater)
+      - name: Clean up release artifacts
+        if: matrix.platform == 'macos-latest'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ github.ref_name }}"
+          for asset in $(gh release view "$TAG" --repo ${{ github.repository }} --json assets -q '.assets[].name'); do
+            case "$asset" in
+              *.app.tar.gz|latest.json)
+                echo "🗑️  Eliminando $asset"
+                gh release delete-asset "$TAG" "$asset" --repo ${{ github.repository }} -y || true
+                ;;
+            esac
+          done

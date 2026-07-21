@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Cegel Print Bridge</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main>
+      <header>
+        <h1>Cegel Print Bridge</h1>
+        <p class="muted">Daemon local para impresoras térmicas</p>
+      </header>
+
+      <section class="card">
+        <div class="row">
+          <span class="label">Estado</span>
+          <span id="status-dot" class="dot dot--off"></span>
+          <span id="status-text">Verificando…</span>
+        </div>
+        <div class="row"><span class="label">Puerto</span><span id="port">—</span></div>
+        <div class="row"><span class="label">Versión</span><span id="version">—</span></div>
+        <div class="row"><span class="label">Vinculado</span><span id="paired">—</span></div>
+        <div class="row"><span class="label">Negocio</span><code id="business-id">—</code></div>
+        <div class="row"><span class="label">ID equipo</span><code id="device-id">—</code></div>
+      </section>
+
+      <section id="pairing-code-box" class="card pairing" style="display: none">
+        <p class="muted small">Escribe este código en la web de Cegel:</p>
+        <div id="pairing-code" class="code-display">------</div>
+        <p id="pairing-help" class="muted small"></p>
+      </section>
+
+      <p id="pairing-error" class="error"></p>
+
+      <section class="actions">
+        <button id="pair">Vincular equipo…</button>
+        <button id="unpair" class="danger" style="display: none">Desvincular</button>
+        <button id="open-config">Abrir carpeta de config</button>
+      </section>
+
+      <footer class="muted small">
+        Cierra esta ventana para minimizar a la bandeja del sistema.<br />
+        Sal con clic derecho en el ícono → Salir.<br />
+        El bridge arranca automáticamente al iniciar sesión.
+      </footer>
+    </main>
+    <script type="module" src="./main.js"></script>
+  </body>
+</html>
