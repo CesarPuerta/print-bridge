@@ -30,9 +30,6 @@ const POS_VENDOR_IDS: &[u16] = &[
     0x2D90, // Genérica
 ];
 
-/// Clase USB 0x07 = Printer
-const USB_CLASS_PRINTER: u8 = 0x07;
-
 /// Escanea todos los dispositivos USB y devuelve los que parecen impresoras.
 pub fn scan() -> Vec<UsbDeviceInfo> {
     let ctx = match rusb::Context::new() {
