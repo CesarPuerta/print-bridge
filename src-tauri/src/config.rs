@@ -195,9 +195,21 @@ impl BridgeConfig {
     }
 
     pub fn remove_printer(&mut self, id: &str) -> bool {
+        log::info!(
+            "remove_printer id={id}, printers_in_mem={}",
+            self.printers.len()
+        );
+        for p in &self.printers {
+            log::debug!("  existing: id='{}' vs request='{id}'", p.id);
+        }
         let len_before = self.printers.len();
         self.printers.retain(|p| p.id != id);
-        self.printers.len() < len_before
+        let removed = self.printers.len() < len_before;
+        log::info!(
+            "remove_printer removed={removed}, remaining={}",
+            self.printers.len()
+        );
+        removed
     }
 }
 

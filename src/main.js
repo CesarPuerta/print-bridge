@@ -424,7 +424,11 @@ async function loadPrinters() {
 
 async function testPrinter(id) {
   try {
-    const res = await fetch(`${BRIDGE_URL}/printers/${id}/test`, { method: 'POST' });
+    const res = await fetch(`${BRIDGE_URL}/printers/test`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id }),
+    });
     const data = await res.json();
     if (data.ok) {
       $('printer-msg').textContent = '✅ Ticket de prueba enviado.';
@@ -453,7 +457,11 @@ async function deletePrinter(id) {
     return;
   }
   try {
-    const res = await fetch(`${BRIDGE_URL}/printers/${id}`, { method: 'DELETE' });
+    const res = await fetch(`${BRIDGE_URL}/printers/delete`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id }),
+    });
     if (!res.ok) {
       const data = await res.json().catch(() => ({}));
       throw new Error(data.error || `Error ${res.status}`);

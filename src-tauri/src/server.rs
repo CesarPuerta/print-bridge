@@ -54,6 +54,8 @@ pub fn build_router(config: BridgeConfig) -> Router {
         .route("/printers/{id}", delete(delete_printer))
         .route("/printers/{id}/test", post(test_printer))
         .route("/printers/{id}/drawer", post(drawer_printer))
+        .route("/printers/delete", post(delete_printer_body))
+        .route("/printers/test", post(test_printer_body))
         .with_state(state)
         .layer(tower_http::limit::RequestBodyLimitLayer::new(
             MAX_BODY_BYTES,
@@ -301,6 +303,7 @@ async fn delete_printer(
     State(state): State<Arc<AppState>>,
     Path(id): Path<String>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    log::info!("DELETE /printers/{} received", id);
     let mut cfg = state.config.lock().await;
     if !cfg.remove_printer(&id) {
         return Err(AppError::not_found("impresora no encontrada"));
@@ -309,6 +312,55 @@ async fn delete_printer(
         log::error!("error guardando config: {e}");
     }
     Ok(Json(serde_json::json!({ "ok": true })))
+}
+
+async fn delete_printer_body(
+    State(state): State<Arc<AppState>>,
+    Json(body): Json<serde_json::Value>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let id = body["id"].as_str().unwrap_or("");
+    log::info!("POST /printers/delete id={id}");
+    let mut cfg = state.config.lock().await;
+    if !cfg.remove_printer(id) {
+        return Err(AppError::not_found("impresora no encontrada"));
+    }
+    if let Err(e) = config::save(&cfg) {
+        log::error!("error guardando config: {e}");
+    }
+    Ok(Json(serde_json::json!({ "ok": true })))
+}
+
+async fn test_printer_body(
+    State(state): State<Arc<AppState>>,
+    Json(body): Json<serde_json::Value>,
+) -> Result<Json<JobResponse>, AppError> {
+    let id = body["id"].as_str().unwrap_or("");
+    log::info!("POST /printers/test id={id}");
+    let cfg = state.config.lock().await;
+    let printer = cfg
+        .find_printer(id)
+        .ok_or_else(|| AppError::not_found("impresora no encontrada"))?;
+
+    let bytes = config::generate_test_ticket(printer.paper_width_mm, printer.drawer_pin > 0);
+    let connection = printer_connection_to_types(printer);
+    drop(cfg);
+
+    adapters::send_bytes(&connection, &bytes).map_err(AppError::internal)?;
+
+    let mut cfg = state.config.lock().await;
+    if let Some(p) = cfg.find_printer_mut(id) {
+        p.online = true;
+    }
+    if let Err(e) = config::save(&cfg) {
+        log::error!("error guardando config: {e}");
+    }
+
+    Ok(Json(JobResponse {
+        ok: true,
+        job_id: uuid::Uuid::new_v4().to_string(),
+        bytes: bytes.len(),
+        message: Some("Ticket de prueba enviado".into()),
+    }))
 }
 
 async fn test_printer(
