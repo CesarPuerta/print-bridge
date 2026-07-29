@@ -174,9 +174,8 @@ struct PrinterConnectionInfo {
 
 async fn list_printers(
     State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
 ) -> Result<Json<PrinterListResponse>, AppError> {
-    enforce_business(&state, &headers).await?;
+    // UI local del bridge — no requiere auth de negocio
     let cfg = state.config.lock().await;
     let printers: Vec<PrinterInfo> = cfg.printers.iter().map(printer_to_info).collect();
     Ok(Json(PrinterListResponse { printers }))
@@ -314,10 +313,9 @@ async fn delete_printer(
 
 async fn test_printer(
     State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
     Path(id): Path<String>,
 ) -> Result<Json<JobResponse>, AppError> {
-    enforce_business(&state, &headers).await?;
+    // UI local del bridge — no requiere auth de negocio
     let cfg = state.config.lock().await;
     let printer = cfg
         .find_printer(&id)
