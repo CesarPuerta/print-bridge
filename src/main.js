@@ -278,7 +278,7 @@ async function configurePrinter(vendorId, productId) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name,
-          paper_width_mm: 80,
+          paperWidthMm: 80,
           connection: {
             type: 'usb',
             vendorId,
@@ -376,9 +376,13 @@ async function deletePrinter(id) {
     return;
   }
   try {
-    await fetch(`${BRIDGE_URL}/printers/${id}`, { method: 'DELETE' });
-    loadPrinters();
+    const res = await fetch(`${BRIDGE_URL}/printers/${id}`, { method: 'DELETE' });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      throw new Error(data.error || `Error ${res.status}`);
+    }
     $('printer-msg').textContent = 'Impresora eliminada.';
+    await loadPrinters();
   } catch (err) {
     $('printer-msg').textContent = `❌ ${err.message}`;
   }

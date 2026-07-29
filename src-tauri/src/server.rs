@@ -300,10 +300,8 @@ async fn configure_printer(
 
 async fn delete_printer(
     State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
     Path(id): Path<String>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    enforce_business(&state, &headers).await?;
     let mut cfg = state.config.lock().await;
     if !cfg.remove_printer(&id) {
         return Err(AppError::not_found("impresora no encontrada"));
