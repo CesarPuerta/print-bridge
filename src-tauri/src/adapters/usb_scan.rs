@@ -68,6 +68,16 @@ pub fn scan() -> Vec<UsbDeviceInfo> {
             continue;
         }
 
+        // Evitar duplicados (mismo VID+PID).
+        let vid_hex = format!("{:04X}", vid);
+        let pid_hex = format!("{:04X}", pid);
+        if found
+            .iter()
+            .any(|d| d.vendor_id == vid_hex && d.product_id == pid_hex)
+        {
+            continue;
+        }
+
         // Leer strings del descriptor (mejor esfuerzo).
         let handle = match device.open() {
             Ok(h) => h,
@@ -88,16 +98,6 @@ pub fn scan() -> Vec<UsbDeviceInfo> {
         let serial_number = lang
             .and_then(|l| handle.read_serial_number_string(l, &desc, TIMEOUT).ok())
             .filter(|s| !s.is_empty());
-
-        // Evitar duplicados (mismo VID+PID).
-        let vid_hex = format!("{:04X}", vid);
-        let pid_hex = format!("{:04X}", pid);
-        if found
-            .iter()
-            .any(|d| d.vendor_id == vid_hex && d.product_id == pid_hex)
-        {
-            continue;
-        }
 
         found.push(UsbDeviceInfo {
             vendor_id: vid_hex,

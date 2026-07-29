@@ -243,7 +243,24 @@ pub async fn run_heartbeat() {
             Err(_) => continue,
         };
         let url = format!("{}/api/devices/heartbeat", cfg.cegel_api_base);
-        let body = serde_json::json!({ "bridgeVersion": VERSION });
+        let printers: Vec<serde_json::Value> = cfg
+            .printers
+            .iter()
+            .map(|p| {
+                serde_json::json!({
+                    "id": p.id,
+                    "name": p.name,
+                    "paperWidthMm": p.paper_width_mm,
+                    "drawerPin": p.drawer_pin,
+                    "connection": p.connection,
+                    "online": p.online,
+                })
+            })
+            .collect();
+        let body = serde_json::json!({
+            "bridgeVersion": VERSION,
+            "printers": printers,
+        });
         match client
             .post(&url)
             .bearer_auth(&token)

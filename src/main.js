@@ -360,7 +360,21 @@ async function testPrinter(id) {
 }
 
 async function deletePrinter(id) {
-  if (!confirm('¿Eliminar esta impresora?')) return;
+  // confirm() no funciona en WebView de Tauri — usar doble-click
+  const btn = document.querySelector(`.delete-printer[data-id="${id}"]`);
+  if (!btn || btn.dataset.deleting !== 'true') {
+    if (btn) {
+      btn.dataset.deleting = 'true';
+      btn.textContent = '¿Eliminar?';
+      btn.classList.add('danger');
+      setTimeout(() => {
+        btn.dataset.deleting = 'false';
+        btn.textContent = 'Eliminar';
+        btn.classList.remove('danger');
+      }, 4000);
+    }
+    return;
+  }
   try {
     await fetch(`${BRIDGE_URL}/printers/${id}`, { method: 'DELETE' });
     loadPrinters();
