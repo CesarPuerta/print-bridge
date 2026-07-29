@@ -1,6 +1,6 @@
 {
   "name": "soluciona-print-bridge",
-  "version": "0.6.5",
+  "version": "0.6.6",
   "private": true,
   "type": "module",
   "description": "Cegel Print Bridge — daemon local que recibe trabajos ESC/POS desde la web app y los envía a impresoras térmicas (USB / TCP / Serial) y abre el cajón monedero.",
