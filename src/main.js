@@ -157,7 +157,7 @@ $('unpair').addEventListener('click', async () => {
 
 // ── Printer management ─────────────────────────────────────────────────────
 
-const BRIDGE_URL = 'http://127.0.0.1:9101';
+const BRIDGE_URL = 'http://localhost:9101';
 
 async function scanUsb() {
   const btn = $('scan-usb');
@@ -184,22 +184,53 @@ async function scanUsb() {
           <strong>${d.product || d.manufacturer || 'Impresora térmica'}</strong>
           <span class="muted small">USB ${d.vendorId}:${d.productId}</span>
         </div>
-        <button class="config-printer" data-vid="${d.vendorId}" data-pid="${d.productId}">
-          Configurar
-        </button>
+        <div class="printer-item__actions">
+          <button class="test-usb small" data-vid="${d.vendorId}" data-pid="${d.productId}">
+            Probar
+          </button>
+          <button class="config-printer" data-vid="${d.vendorId}" data-pid="${d.productId}">
+            Configurar
+          </button>
+        </div>
       </div>
     `,
       )
       .join('');
 
+    list.querySelectorAll('.test-usb').forEach(btn => {
+      btn.addEventListener('click', () => testUsbDevice(btn.dataset.vid, btn.dataset.pid));
+    });
     list.querySelectorAll('.config-printer').forEach(btn => {
       btn.addEventListener('click', () => configurePrinter(btn.dataset.vid, btn.dataset.pid));
     });
-  } catch {
-    list.innerHTML = '<p class="error">Error al escanear: ¿está corriendo el servidor?</p>';
+  } catch (err) {
+    // Mostrar más info para diagnosticar en Windows
+    const detail = err.message || 'Error de conexión';
+    list.innerHTML = `<p class="error">Error al escanear: ${detail}</p>
+      <p class="muted small">¿Está corriendo el servidor? Verificá el estado arriba (debe decir "Activo").</p>`;
   } finally {
     btn.disabled = false;
     btn.textContent = '🔍 Detectar impresora USB';
+  }
+}
+
+async function testUsbDevice(vendorId, productId) {
+  $('printer-msg').textContent = '⏳ Enviando prueba...';
+  try {
+    const res = await fetch(`${BRIDGE_URL}/usb/test`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ vendorId, productId }),
+    });
+    const data = await res.json();
+    if (data.ok) {
+      $('printer-msg').textContent =
+        '✅ Ticket de prueba enviado. Si la impresora imprime, configurala.';
+    } else {
+      $('printer-msg').textContent = `❌ ${data.error || 'Error al probar'}`;
+    }
+  } catch (err) {
+    $('printer-msg').textContent = `❌ ${err.message}`;
   }
 }
 

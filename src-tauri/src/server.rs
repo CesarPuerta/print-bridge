@@ -48,6 +48,7 @@ pub fn build_router(config: BridgeConfig) -> Router {
         .route("/print", post(print_job))
         .route("/drawer-kick", post(drawer_kick))
         .route("/usb-devices", get(usb_devices))
+        .route("/usb/test", post(usb_test))
         .route("/printers", get(list_printers))
         .route("/printers/configure", post(configure_printer))
         .route("/printers/{id}", delete(delete_printer))
@@ -106,6 +107,37 @@ struct UsbDevicesResponse {
 async fn usb_devices() -> Json<UsbDevicesResponse> {
     let devices = adapters::usb_scan::scan();
     Json(UsbDevicesResponse { devices })
+}
+
+#[derive(serde::Deserialize)]
+struct UsbTestRequest {
+    #[serde(rename = "vendorId")]
+    vendor_id: String,
+    #[serde(rename = "productId")]
+    product_id: String,
+}
+
+async fn usb_test(Json(req): Json<UsbTestRequest>) -> Result<Json<JobResponse>, AppError> {
+    let conn = crate::types::Connection {
+        conn_type: crate::types::ConnectionType::Usb,
+        host: None,
+        port: None,
+        vendor_id: Some(req.vendor_id),
+        product_id: Some(req.product_id),
+        path: None,
+        baud_rate: None,
+        mac_address: None,
+    };
+
+    let bytes = config::generate_test_ticket(80, false);
+    adapters::send_bytes(&conn, &bytes).map_err(AppError::internal)?;
+
+    Ok(Json(JobResponse {
+        ok: true,
+        job_id: uuid::Uuid::new_v4().to_string(),
+        bytes: bytes.len(),
+        message: Some("Ticket de prueba enviado".into()),
+    }))
 }
 
 // Printer management

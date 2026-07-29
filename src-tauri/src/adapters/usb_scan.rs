@@ -62,15 +62,9 @@ pub fn scan() -> Vec<UsbDeviceInfo> {
         let vid = desc.vendor_id();
         let pid = desc.product_id();
 
-        // Filtrar: solo clase impresora (0x07) o VID conocido de POS.
-        // Algunos dispositivos compuestos no reportan clase a nivel dispositivo,
-        // así que también verificamos la interfaz.
-        let is_printer_class = desc.class_code() == USB_CLASS_PRINTER;
-        let is_pos_vendor = POS_VENDOR_IDS.contains(&vid);
-
-        if !is_printer_class && !is_pos_vendor {
-            continue;
-        }
+        // Aceptar cualquier dispositivo con endpoint OUT que pueda recibir datos.
+        // Muchas impresoras POS chinas usan chips USB-serial que no reportan
+        // clase de impresora (0x07). Ser permisivos evita falsos negativos.
 
         // Verificar que tenga al menos una interfaz con endpoint OUT.
         if !has_out_endpoint(&device) {
@@ -116,6 +110,19 @@ pub fn scan() -> Vec<UsbDeviceInfo> {
             serial_number,
         });
     }
+
+    // Ordenar: impresoras conocidas (POS) primero, luego alfabéticamente
+    found.sort_by(|a, b| {
+        let a_known = u16::from_str_radix(&a.vendor_id, 16)
+            .map(|v| POS_VENDOR_IDS.contains(&v))
+            .unwrap_or(false);
+        let b_known = u16::from_str_radix(&b.vendor_id, 16)
+            .map(|v| POS_VENDOR_IDS.contains(&v))
+            .unwrap_or(false);
+        b_known
+            .cmp(&a_known)
+            .then_with(|| a.product.cmp(&b.product))
+    });
 
     found
 }
