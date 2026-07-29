@@ -155,3 +155,43 @@ code {
 .config-printer:hover {
   background: #0d9488;
 }
+
+.config-form-inline {
+  display: flex;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  background: #0f172a;
+  border-radius: 8px;
+  margin-top: 0.5rem;
+  align-items: center;
+}
+
+.config-name-input {
+  flex: 1;
+  background: #1e293b;
+  border: 1px solid #475569;
+  color: #e2e8f0;
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+  font-size: 0.85rem;
+}
+
+.config-name-input:focus {
+  outline: none;
+  border-color: #2563eb;
+}
+
+.test-usb {
+  background: #6366f1;
+  color: #fff;
+  border: none;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.test-usb:hover {
+  background: #4f46e5;
+}

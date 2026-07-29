@@ -234,35 +234,75 @@ async function testUsbDevice(vendorId, productId) {
   }
 }
 
+let configuringDevice = null;
+
 async function configurePrinter(vendorId, productId) {
-  const name = prompt('Nombre de la impresora:', `POS ${vendorId}`);
-  if (!name) return;
-
-  try {
-    const res = await fetch(`${BRIDGE_URL}/printers/configure`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        name,
-        paper_width_mm: 80,
-        connection: {
-          type: 'usb',
-          vendorId,
-          productId,
-        },
-      }),
-    });
-
-    if (!res.ok) {
-      const err = await res.json();
-      throw new Error(err.error || 'Error al configurar');
-    }
-
-    $('printer-msg').textContent = `✅ "${name}" configurada correctamente.`;
-    loadPrinters();
-  } catch (err) {
-    $('printer-msg').textContent = `❌ ${err.message}`;
+  // Si ya estamos configurando otro, cancelar
+  if (configuringDevice) {
+    document.querySelector('.config-form-inline')?.remove();
   }
+  configuringDevice = { vendorId, productId };
+
+  const list = $('usb-list');
+  const form = document.createElement('div');
+  form.className = 'config-form-inline';
+  form.innerHTML = `
+    <input type="text" id="printer-name-input" class="config-name-input" 
+           placeholder="Nombre de la impresora" value="POS ${vendorId}" autofocus />
+    <button id="confirm-config" class="primary small">Guardar</button>
+    <button id="cancel-config" class="small">Cancelar</button>
+  `;
+  list.appendChild(form);
+
+  const input = form.querySelector('#printer-name-input');
+  input.focus();
+  input.select();
+
+  const cleanup = () => {
+    form.remove();
+    configuringDevice = null;
+  };
+
+  form.querySelector('#cancel-config').addEventListener('click', cleanup);
+
+  form.querySelector('#confirm-config').addEventListener('click', async () => {
+    const name = input.value.trim();
+    if (!name) return;
+
+    cleanup();
+    $('printer-msg').textContent = '⏳ Configurando...';
+
+    try {
+      const res = await fetch(`${BRIDGE_URL}/printers/configure`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name,
+          paper_width_mm: 80,
+          connection: {
+            type: 'usb',
+            vendorId,
+            productId,
+          },
+        }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || 'Error al configurar');
+      }
+
+      $('printer-msg').textContent = `✅ "${name}" configurada correctamente.`;
+      loadPrinters();
+    } catch (err) {
+      $('printer-msg').textContent = `❌ ${err.message}`;
+    }
+  });
+
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter') form.querySelector('#confirm-config').click();
+    if (e.key === 'Escape') cleanup();
+  });
 }
 
 async function loadPrinters() {

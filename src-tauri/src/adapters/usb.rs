@@ -40,10 +40,23 @@ pub fn send(conn: &Connection, bytes: &[u8]) -> Result<()> {
     // libusb 1.0.24+ soporta esto en Windows via WinUSB.
     let _ = handle.set_auto_detach_kernel_driver(true);
 
+    // En macOS, el kernel driver (IOKit) a veces no se suelta con auto-detach.
+    // Intentar detach explícito en todas las interfaces disponibles.
     let device = handle.device();
     let device_desc = device
         .device_descriptor()
         .context("no se pudo leer el descriptor del dispositivo USB")?;
+
+    // Detach explícito del kernel driver para macOS
+    for cfg_idx in 0..device_desc.num_configurations() {
+        if let Ok(cfg) = device.config_descriptor(cfg_idx) {
+            for iface in cfg.interfaces() {
+                for desc in iface.descriptors() {
+                    let _ = handle.detach_kernel_driver(desc.interface_number());
+                }
+            }
+        }
+    }
 
     // Probar todas las configuraciones disponibles — no solo la activa.
     // Algunos dispositivos compuestos requieren cambiar de configuración.
@@ -131,10 +144,22 @@ pub fn send(conn: &Connection, bytes: &[u8]) -> Result<()> {
         .claim_interface(iface)
         .with_context(|| format!("no se pudo reclamar la interfaz USB {iface}"))?;
 
+    // Pequeña pausa para que el dispositivo se estabilice después del detach
+    std::thread::sleep(std::time::Duration::from_millis(200));
+
     let written = match transfer_type {
-        TransferType::Bulk => handle
-            .write_bulk(endpoint, bytes, TIMEOUT)
-            .context("error escribiendo bulk al endpoint USB")?,
+        TransferType::Bulk => {
+            let result = handle.write_bulk(endpoint, bytes, TIMEOUT);
+            // Si falla, un solo retry después de 500ms
+            if result.is_err() {
+                std::thread::sleep(std::time::Duration::from_millis(500));
+                handle
+                    .write_bulk(endpoint, bytes, TIMEOUT)
+                    .context("error escribiendo bulk al endpoint USB")?
+            } else {
+                result.context("error escribiendo bulk al endpoint USB")?
+            }
+        }
         TransferType::Interrupt => handle
             .write_interrupt(endpoint, bytes, TIMEOUT)
             .context("error escribiendo interrupt al endpoint USB")?,
