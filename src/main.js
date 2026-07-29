@@ -236,6 +236,70 @@ async function testUsbDevice(vendorId, productId) {
 
 let configuringDevice = null;
 
+async function editPrinter(id, currentName, drawerPin, paperWidth) {
+  if (configuringDevice) {
+    document.querySelector('.config-form-inline')?.remove();
+  }
+  configuringDevice = { vendorId: null, productId: null, editId: id };
+
+  const list = $('printer-list');
+  const form = document.createElement('div');
+  form.className = 'config-form-inline';
+  form.innerHTML = `
+    <input type="text" id="printer-name-input" class="config-name-input"
+           placeholder="Nombre" value="${currentName}" autofocus />
+    <select id="printer-pin-input" class="config-pin-select">
+      <option value="0" ${drawerPin == '0' ? 'selected' : ''}>Sin cajón</option>
+      <option value="2" ${drawerPin == '2' ? 'selected' : ''}>Cajón pin 2</option>
+      <option value="5" ${drawerPin == '5' ? 'selected' : ''}>Cajón pin 5</option>
+    </select>
+    <button id="confirm-edit" class="primary small">Guardar</button>
+    <button id="cancel-edit" class="small">Cancelar</button>
+  `;
+  list.appendChild(form);
+
+  const input = form.querySelector('#printer-name-input');
+  input.focus();
+  input.select();
+
+  const cleanup = () => {
+    form.remove();
+    configuringDevice = null;
+  };
+
+  form.querySelector('#cancel-edit').addEventListener('click', cleanup);
+
+  form.querySelector('#confirm-edit').addEventListener('click', async () => {
+    const name = input.value.trim();
+    if (!name) return;
+    const pin = parseInt(form.querySelector('#printer-pin-input').value);
+
+    cleanup();
+    $('printer-msg').textContent = '⏳ Guardando...';
+
+    try {
+      const res = await fetch(`${BRIDGE_URL}/printers/configure`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, name, paperWidthMm: parseInt(paperWidth), drawerPin: pin }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || 'Error al guardar');
+      }
+      $('printer-msg').textContent = `✅ "${name}" actualizada.`;
+      loadPrinters();
+    } catch (err) {
+      $('printer-msg').textContent = `❌ ${err.message}`;
+    }
+  });
+
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter') form.querySelector('#confirm-edit').click();
+    if (e.key === 'Escape') cleanup();
+  });
+}
+
 async function configurePrinter(vendorId, productId) {
   // Si ya estamos configurando otro, cancelar
   if (configuringDevice) {
@@ -249,6 +313,11 @@ async function configurePrinter(vendorId, productId) {
   form.innerHTML = `
     <input type="text" id="printer-name-input" class="config-name-input" 
            placeholder="Nombre de la impresora" value="POS ${vendorId}" autofocus />
+    <select id="printer-pin-input" class="config-pin-select">
+      <option value="0">Sin cajón</option>
+      <option value="2">Cajón pin 2</option>
+      <option value="5">Cajón pin 5</option>
+    </select>
     <button id="confirm-config" class="primary small">Guardar</button>
     <button id="cancel-config" class="small">Cancelar</button>
   `;
@@ -268,6 +337,7 @@ async function configurePrinter(vendorId, productId) {
   form.querySelector('#confirm-config').addEventListener('click', async () => {
     const name = input.value.trim();
     if (!name) return;
+    const pin = parseInt(form.querySelector('#printer-pin-input').value);
 
     cleanup();
     $('printer-msg').textContent = '⏳ Configurando...';
@@ -279,6 +349,7 @@ async function configurePrinter(vendorId, productId) {
         body: JSON.stringify({
           name,
           paperWidthMm: 80,
+          drawerPin: pin,
           connection: {
             type: 'usb',
             vendorId,
@@ -323,10 +394,11 @@ async function loadPrinters() {
       <div class="printer-item ${p.online ? 'printer-item--online' : ''}">
         <div>
           <strong>${p.name}</strong>
-          <span class="muted small">${p.paperWidthMm}mm · ${p.online ? '🟢 Conectada' : '⚪ Sin verificar'}</span>
+          <span class="muted small">${p.paperWidthMm}mm${p.drawerPin > 0 ? ` · Cajón pin ${p.drawerPin}` : ''} · ${p.online ? '🟢 Conectada' : '⚪ Sin verificar'}</span>
         </div>
         <div class="printer-item__actions">
           <button class="test-printer small" data-id="${p.id}">Probar</button>
+          <button class="edit-printer small" data-id="${p.id}" data-name="${p.name}" data-pin="${p.drawerPin || 0}" data-width="${p.paperWidthMm}">Editar</button>
           <button class="delete-printer small danger" data-id="${p.id}">Eliminar</button>
         </div>
       </div>
@@ -336,6 +408,11 @@ async function loadPrinters() {
 
     list.querySelectorAll('.test-printer').forEach(btn => {
       btn.addEventListener('click', () => testPrinter(btn.dataset.id));
+    });
+    list.querySelectorAll('.edit-printer').forEach(btn => {
+      btn.addEventListener('click', () =>
+        editPrinter(btn.dataset.id, btn.dataset.name, btn.dataset.pin, btn.dataset.width),
+      );
     });
     list.querySelectorAll('.delete-printer').forEach(btn => {
       btn.addEventListener('click', () => deletePrinter(btn.dataset.id));

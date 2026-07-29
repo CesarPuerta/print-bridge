@@ -181,6 +181,21 @@ code {
   border-color: #2563eb;
 }
 
+.config-pin-select {
+  background: #1e293b;
+  border: 1px solid #475569;
+  color: #e2e8f0;
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.config-pin-select:focus {
+  outline: none;
+  border-color: #2563eb;
+}
+
 .test-usb {
   background: #6366f1;
   color: #fff;
