@@ -1,6 +1,6 @@
 [package]
 name = "soluciona-print-bridge"
-version = "0.6.7"
+version = "0.6.8"
 description = "Cegel Print Bridge — daemon local ESC/POS + Windows native USB"
 authors = ["Cegel"]
 edition = "2021"
