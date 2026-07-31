@@ -55,6 +55,9 @@ pub fn run() {
             cmd_get_pairing_state,
             cmd_unpair,
             cmd_set_autostart,
+            cmd_scan_usb,
+            cmd_test_usb,
+            cmd_list_printers,
         ])
         .setup(move |app| {
             // Habilitar autostart por defecto la primera vez.
@@ -235,4 +238,53 @@ fn cmd_set_autostart(app: tauri::AppHandle, enabled: bool) -> Result<(), String>
     } else {
         manager.disable().map_err(|e| e.to_string())
     }
+}
+
+/// Escanea impresoras USB conectadas — evita fetch() a localhost bloqueado en Windows.
+#[tauri::command]
+fn cmd_scan_usb() -> Result<Vec<adapters::usb_scan::UsbDeviceInfo>, String> {
+    Ok(adapters::usb_scan::scan())
+}
+
+/// Envía ticket de prueba a un dispositivo USB — evita fetch() a localhost.
+#[tauri::command]
+fn cmd_test_usb(vendor_id: String, product_id: String) -> Result<bool, String> {
+    let connection = types::Connection {
+        conn_type: types::ConnectionType::Usb,
+        vendor_id: Some(vendor_id),
+        product_id: Some(product_id),
+        host: None,
+        port: None,
+        path: None,
+        baud_rate: None,
+        mac_address: None,
+    };
+    let test_ticket = config::generate_test_ticket(80, false);
+    adapters::send_bytes(&connection, &test_ticket).map_err(|e| format!("{e}"))?;
+    Ok(true)
+}
+
+/// Lista impresoras configuradas — evita fetch() a localhost.
+#[tauri::command]
+fn cmd_list_printers() -> Result<serde_json::Value, String> {
+    let cfg = config::load();
+    let printers: Vec<serde_json::Value> = cfg
+        .printers
+        .iter()
+        .map(|p| {
+            serde_json::json!({
+                "id": p.id,
+                "name": p.name,
+                "paperWidthMm": p.paper_width_mm,
+                "drawerPin": p.drawer_pin,
+                "online": p.online,
+                "connection": {
+                    "type": p.connection.conn_type,
+                    "vendorId": p.connection.vendor_id,
+                    "productId": p.connection.product_id,
+                }
+            })
+        })
+        .collect();
+    Ok(serde_json::json!({ "printers": printers }))
 }

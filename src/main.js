@@ -166,19 +166,41 @@ async function scanUsb() {
   btn.textContent = '⏳ Detectando…';
   list.innerHTML = '';
 
+  let devices;
+
+  // Intentar fetch HTTP primero; en Windows WebView2 bloquea loopback → usar Tauri command.
   try {
     const res = await fetch(`${BRIDGE_URL}/usb-devices`);
     const data = await res.json();
-    const devices = data.devices || [];
-
-    if (devices.length === 0) {
-      list.innerHTML = '<p class="muted small">No se encontraron impresoras USB.</p>';
+    devices = data.devices || [];
+  } catch (fetchErr) {
+    // Esperado en Windows: WebView2 bloquea fetch a localhost.
+    console.warn(
+      'fetch /usb-devices falló, usando Tauri cmd_scan_usb:',
+      fetchErr?.message || fetchErr,
+    );
+    try {
+      devices = await invoke('cmd_scan_usb');
+    } catch (tauriErr) {
+      console.error('cmd_scan_usb falló:', tauriErr);
+      list.innerHTML = `<p class="error">Error al escanear: ${tauriErr?.message || tauriErr}</p>
+        <p class="muted small">¿Está corriendo el servidor? Verificá el estado arriba.</p>`;
+      btn.disabled = false;
+      btn.textContent = '🔍 Detectar impresora USB';
       return;
     }
+  }
 
-    list.innerHTML = devices
-      .map(
-        d => `
+  if (devices.length === 0) {
+    list.innerHTML = '<p class="muted small">No se encontraron impresoras USB.</p>';
+    btn.disabled = false;
+    btn.textContent = '🔍 Detectar impresora USB';
+    return;
+  }
+
+  list.innerHTML = devices
+    .map(
+      d => `
       <div class="printer-item">
         <div>
           <strong>${d.product || d.manufacturer || 'Impresora térmica'}</strong>
@@ -194,24 +216,18 @@ async function scanUsb() {
         </div>
       </div>
     `,
-      )
-      .join('');
+    )
+    .join('');
 
-    list.querySelectorAll('.test-usb').forEach(btn => {
-      btn.addEventListener('click', () => testUsbDevice(btn.dataset.vid, btn.dataset.pid));
-    });
-    list.querySelectorAll('.config-printer').forEach(btn => {
-      btn.addEventListener('click', () => configurePrinter(btn.dataset.vid, btn.dataset.pid));
-    });
-  } catch (err) {
-    // Mostrar más info para diagnosticar en Windows
-    const detail = err.message || 'Error de conexión';
-    list.innerHTML = `<p class="error">Error al escanear: ${detail}</p>
-      <p class="muted small">¿Está corriendo el servidor? Verificá el estado arriba (debe decir "Activo").</p>`;
-  } finally {
-    btn.disabled = false;
-    btn.textContent = '🔍 Detectar impresora USB';
-  }
+  list.querySelectorAll('.test-usb').forEach(btn => {
+    btn.addEventListener('click', () => testUsbDevice(btn.dataset.vid, btn.dataset.pid));
+  });
+  list.querySelectorAll('.config-printer').forEach(btn => {
+    btn.addEventListener('click', () => configurePrinter(btn.dataset.vid, btn.dataset.pid));
+  });
+
+  btn.disabled = false;
+  btn.textContent = '🔍 Detectar impresora USB';
 }
 
 async function testUsbDevice(vendorId, productId) {
@@ -229,8 +245,20 @@ async function testUsbDevice(vendorId, productId) {
     } else {
       $('printer-msg').textContent = `❌ ${data.error || 'Error al probar'}`;
     }
-  } catch (err) {
-    $('printer-msg').textContent = `❌ ${err.message}`;
+  } catch (fetchErr) {
+    // Esperado en Windows: WebView2 bloquea fetch a localhost.
+    console.warn(
+      'fetch /usb/test falló, usando Tauri cmd_test_usb:',
+      fetchErr?.message || fetchErr,
+    );
+    try {
+      await invoke('cmd_test_usb', { vendorId, productId });
+      $('printer-msg').textContent =
+        '✅ Ticket de prueba enviado. Si la impresora imprime, configurala.';
+    } catch (tauriErr) {
+      console.error('cmd_test_usb falló:', tauriErr);
+      $('printer-msg').textContent = `❌ ${tauriErr?.message || tauriErr}`;
+    }
   }
 }
 
@@ -378,19 +406,34 @@ async function configurePrinter(vendorId, productId) {
 
 async function loadPrinters() {
   const list = $('printer-list');
+  let printers;
   try {
     const res = await fetch(`${BRIDGE_URL}/printers`);
     const data = await res.json();
-    const printers = data.printers || [];
-
-    if (printers.length === 0) {
+    printers = data.printers || [];
+  } catch (fetchErr) {
+    console.warn(
+      'fetch /printers falló, usando Tauri cmd_list_printers:',
+      fetchErr?.message || fetchErr,
+    );
+    try {
+      const data = await invoke('cmd_list_printers');
+      printers = data.printers || [];
+    } catch (tauriErr) {
+      console.error('cmd_list_printers falló:', tauriErr);
       list.innerHTML = '';
       return;
     }
+  }
 
-    list.innerHTML = printers
-      .map(
-        p => `
+  if (printers.length === 0) {
+    list.innerHTML = '';
+    return;
+  }
+
+  list.innerHTML = printers
+    .map(
+      p => `
       <div class="printer-item ${p.online ? 'printer-item--online' : ''}">
         <div>
           <strong>${p.name}</strong>
@@ -403,23 +446,20 @@ async function loadPrinters() {
         </div>
       </div>
     `,
-      )
-      .join('');
+    )
+    .join('');
 
-    list.querySelectorAll('.test-printer').forEach(btn => {
-      btn.addEventListener('click', () => testPrinter(btn.dataset.id));
-    });
-    list.querySelectorAll('.edit-printer').forEach(btn => {
-      btn.addEventListener('click', () =>
-        editPrinter(btn.dataset.id, btn.dataset.name, btn.dataset.pin, btn.dataset.width),
-      );
-    });
-    list.querySelectorAll('.delete-printer').forEach(btn => {
-      btn.addEventListener('click', () => deletePrinter(btn.dataset.id));
-    });
-  } catch {
-    // bridge not running
-  }
+  list.querySelectorAll('.test-printer').forEach(btn => {
+    btn.addEventListener('click', () => testPrinter(btn.dataset.id));
+  });
+  list.querySelectorAll('.edit-printer').forEach(btn => {
+    btn.addEventListener('click', () =>
+      editPrinter(btn.dataset.id, btn.dataset.name, btn.dataset.pin, btn.dataset.width),
+    );
+  });
+  list.querySelectorAll('.delete-printer').forEach(btn => {
+    btn.addEventListener('click', () => deletePrinter(btn.dataset.id));
+  });
 }
 
 async function testPrinter(id) {
