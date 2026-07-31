@@ -206,9 +206,9 @@ struct ConfigurePrinterRequest {
     #[serde(default)]
     id: String,
     name: String,
-    #[serde(default = "default_80")]
+    #[serde(default = "default_80", alias = "paperWidthMm")]
     paper_width_mm: u8,
-    #[serde(default)]
+    #[serde(default, alias = "drawerPin")]
     drawer_pin: u8,
     connection: Option<ConfigureConnectionRequest>,
 }
