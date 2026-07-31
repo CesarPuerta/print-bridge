@@ -5,6 +5,9 @@ use tauri::{
 };
 use tauri_plugin_autostart::MacosLauncher;
 
+use crate::config::PrinterConfig;
+use crate::config::PrinterConnectionConfig;
+
 pub mod adapters;
 pub mod config;
 pub mod pairing;
@@ -58,6 +61,7 @@ pub fn run() {
             cmd_scan_usb,
             cmd_test_usb,
             cmd_list_printers,
+            cmd_configure_printer,
         ])
         .setup(move |app| {
             // Habilitar autostart por defecto la primera vez.
@@ -287,4 +291,79 @@ fn cmd_list_printers() -> Result<serde_json::Value, String> {
         })
         .collect();
     Ok(serde_json::json!({ "printers": printers }))
+}
+
+/// Configura una impresora (crea o actualiza) — evita fetch() a localhost en Windows.
+#[tauri::command(rename_all = "camelCase")]
+fn cmd_configure_printer(
+    id: Option<String>,
+    name: String,
+    paper_width_mm: Option<u8>,
+    drawer_pin: Option<u8>,
+    vendor_id: Option<String>,
+    product_id: Option<String>,
+) -> Result<serde_json::Value, String> {
+    let mut cfg = config::load();
+    let connection = if let (Some(vid), Some(pid)) = (&vendor_id, &product_id) {
+        PrinterConnectionConfig {
+            conn_type: "usb".into(),
+            host: None,
+            port: None,
+            vendor_id: Some(vid.clone()),
+            product_id: Some(pid.clone()),
+            path: None,
+        }
+    } else {
+        let devices = adapters::usb_scan::scan();
+        if let Some(d) = devices.first() {
+            PrinterConnectionConfig {
+                conn_type: "usb".into(),
+                host: None,
+                port: None,
+                vendor_id: Some(d.vendor_id.clone()),
+                product_id: Some(d.product_id.clone()),
+                path: None,
+            }
+        } else {
+            return Err("No se detectó impresora USB".into());
+        }
+    };
+
+    let name = name.trim().to_string();
+    let pw = paper_width_mm.unwrap_or(80);
+    let dp = drawer_pin.unwrap_or(0);
+
+    let printer = if let Some(ref pid) = id {
+        if let Some(p) = cfg.find_printer_mut(pid) {
+            p.name = name;
+            p.paper_width_mm = pw;
+            p.drawer_pin = dp;
+            p.connection = connection;
+            p.clone()
+        } else {
+            return Err("Impresora no encontrada".into());
+        }
+    } else {
+        let new_id = uuid::Uuid::new_v4().to_string();
+        let p = PrinterConfig {
+            id: new_id.clone(),
+            name,
+            paper_width_mm: pw,
+            drawer_pin: dp,
+            connection,
+            online: false,
+        };
+        cfg.add_printer(p.clone());
+        p
+    };
+
+    config::save(&cfg).map_err(|e| format!("Error guardando: {e}"))?;
+
+    Ok(serde_json::json!({
+        "id": printer.id,
+        "name": printer.name,
+        "paperWidthMm": printer.paper_width_mm,
+        "drawerPin": printer.drawer_pin,
+        "online": printer.online,
+    }))
 }

@@ -264,6 +264,32 @@ async function testUsbDevice(vendorId, productId) {
 
 let configuringDevice = null;
 
+/** Guarda configuración de impresora: intenta fetch, fallback a Tauri (Windows). */
+async function savePrinterConfig(body) {
+  try {
+    const res = await fetch(`${BRIDGE_URL}/printers/configure`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || 'Error al guardar');
+    }
+    return await res.json();
+  } catch (fetchErr) {
+    console.warn('fetch /printers/configure falló, usando Tauri:', fetchErr?.message || fetchErr);
+    return await invoke('cmd_configure_printer', {
+      id: body.id || null,
+      name: body.name,
+      paperWidthMm: body.paperWidthMm,
+      drawerPin: body.drawerPin,
+      vendorId: body.connection?.vendorId || null,
+      productId: body.connection?.productId || null,
+    });
+  }
+}
+
 async function editPrinter(id, currentName, drawerPin, paperWidth) {
   if (configuringDevice) {
     document.querySelector('.config-form-inline')?.remove();
@@ -306,19 +332,11 @@ async function editPrinter(id, currentName, drawerPin, paperWidth) {
     $('printer-msg').textContent = '⏳ Guardando...';
 
     try {
-      const res = await fetch(`${BRIDGE_URL}/printers/configure`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id, name, paperWidthMm: parseInt(paperWidth), drawerPin: pin }),
-      });
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || 'Error al guardar');
-      }
+      await savePrinterConfig({ id, name, paperWidthMm: parseInt(paperWidth), drawerPin: pin });
       $('printer-msg').textContent = `✅ "${name}" actualizada.`;
       loadPrinters();
     } catch (err) {
-      $('printer-msg').textContent = `❌ ${err.message}`;
+      $('printer-msg').textContent = `❌ ${err?.message || err}`;
     }
   });
 
@@ -371,30 +389,16 @@ async function configurePrinter(vendorId, productId) {
     $('printer-msg').textContent = '⏳ Configurando...';
 
     try {
-      const res = await fetch(`${BRIDGE_URL}/printers/configure`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name,
-          paperWidthMm: 80,
-          drawerPin: pin,
-          connection: {
-            type: 'usb',
-            vendorId,
-            productId,
-          },
-        }),
+      await savePrinterConfig({
+        name,
+        paperWidthMm: 80,
+        drawerPin: pin,
+        connection: { type: 'usb', vendorId, productId },
       });
-
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || 'Error al configurar');
-      }
-
       $('printer-msg').textContent = `✅ "${name}" configurada correctamente.`;
       loadPrinters();
     } catch (err) {
-      $('printer-msg').textContent = `❌ ${err.message}`;
+      $('printer-msg').textContent = `❌ ${err?.message || err}`;
     }
   });
 
