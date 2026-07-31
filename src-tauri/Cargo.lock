@@ -3775,7 +3775,7 @@ dependencies = [
 
 [[package]]
 name = "soluciona-print-bridge"
-version = "0.6.6"
+version = "0.6.7"
 dependencies = [
  "anyhow",
  "axum",

@@ -192,18 +192,37 @@ fn cmd_get_pairing_state(
 }
 
 #[tauri::command]
-fn cmd_unpair() -> Result<(), String> {
+async fn cmd_unpair() -> Result<(), String> {
+    let cfg = config::load();
+
+    // 1. Intentar revocar en el backend (mejor esfuerzo).
+    if let Some(token) = &cfg.device_token {
+        let url = format!("{}/api/devices/unpair", cfg.cegel_api_base);
+        let client = match reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(8))
+            .use_rustls_tls()
+            .build()
+        {
+            Ok(c) => c,
+            Err(_) => {
+                log::warn!("no se pudo crear cliente HTTP para unpair");
+                return Err("error de red".into());
+            }
+        };
+        match client.post(&url).bearer_auth(token).send().await {
+            Ok(r) if r.status().is_success() => log::info!("dispositivo revocado en backend"),
+            Ok(r) => log::warn!("unpair HTTP {}", r.status()),
+            Err(e) => log::warn!("unpair error: {e}"),
+        }
+    }
+
+    // 2. Limpiar estado local.
     let defaults = config::BridgeConfig::default();
     let mut cfg = config::load();
-
-    // Resetear todo lo vinculado al negocio/usuario
     cfg.device_token = None;
     cfg.paired_business_id = None;
     cfg.printers.clear();
-
-    // Nuevo device_id para una vinculación limpia
     cfg.device_id = defaults.device_id;
-
     config::save(&cfg).map_err(|e| e.to_string())
 }
 
