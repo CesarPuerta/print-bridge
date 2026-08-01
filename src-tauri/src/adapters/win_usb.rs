@@ -1,5 +1,5 @@
-/// Adaptador USB nativo de Windows usando SetupDi + CreateFile + WriteFile.
-/// No requiere libusb ni Zadig — funciona con el driver estándar de Windows.
+/// Adaptador USB nativo de Windows usando SetupDi + WinUsb.
+/// Usa WinUsb_Initialize + WinUsb_WritePipe (API correcta para USB bulk transfers).
 use crate::types::Connection;
 use anyhow::{anyhow, Context, Result};
 use std::ffi::OsString;
@@ -11,10 +11,14 @@ use windows::Win32::Devices::DeviceAndDriverInstallation::{
     DIGCF_DEVICEINTERFACE, DIGCF_PRESENT, SP_DEVICE_INTERFACE_DATA,
     SP_DEVICE_INTERFACE_DETAIL_DATA_W, SP_DEVINFO_DATA,
 };
+use windows::Win32::Devices::Usb::{
+    WinUsb_Free, WinUsb_Initialize, WinUsb_QueryPipe, WinUsb_WritePipe, WINUSB_INTERFACE_HANDLE,
+    WINUSB_PIPE_INFORMATION,
+};
 use windows::Win32::Foundation::{CloseHandle, HANDLE, INVALID_HANDLE_VALUE};
 use windows::Win32::Storage::FileSystem::{
-    CreateFileW, WriteFile, FILE_ATTRIBUTE_NORMAL, FILE_GENERIC_READ, FILE_GENERIC_WRITE,
-    FILE_SHARE_READ, FILE_SHARE_WRITE, OPEN_EXISTING,
+    CreateFileW, FILE_ATTRIBUTE_NORMAL, FILE_FLAG_OVERLAPPED, FILE_GENERIC_READ,
+    FILE_GENERIC_WRITE, FILE_SHARE_READ, FILE_SHARE_WRITE, OPEN_EXISTING,
 };
 
 /// GUID_DEVINTERFACE_USB_DEVICE: {A5DCBF10-6530-11D2-901F-00C04FB951ED}
@@ -51,7 +55,7 @@ pub fn send(conn: &Connection, bytes: &[u8]) -> Result<()> {
     // Buscar el device path nativo de Windows
     let device_path = find_usb_device(vendor_id, product_id)?;
 
-    // Abrir el dispositivo con CreateFileW
+    // Abrir el dispositivo con CreateFileW (requiere FILE_FLAG_OVERLAPPED para WinUsb)
     let path_wide: Vec<u16> = device_path
         .to_string_lossy()
         .encode_utf16()
@@ -64,7 +68,7 @@ pub fn send(conn: &Connection, bytes: &[u8]) -> Result<()> {
             FILE_SHARE_READ | FILE_SHARE_WRITE,
             None,
             OPEN_EXISTING,
-            FILE_ATTRIBUTE_NORMAL,
+            FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OVERLAPPED.0,
             HANDLE::default(),
         )
     }
@@ -78,13 +82,48 @@ pub fn send(conn: &Connection, bytes: &[u8]) -> Result<()> {
         ));
     }
 
-    // Escribir bytes
+    // Inicializar WinUSB
+    let mut winusb_handle = WINUSB_INTERFACE_HANDLE::default();
+    unsafe {
+        WinUsb_Initialize(handle, &mut winusb_handle)
+            .map_err(|e| anyhow!("WinUsb_Initialize falló: {e:?}"))?;
+    }
+
+    // Buscar el primer endpoint OUT (bulk/interrupt)
+    let mut out_pipe_id: u8 = 0;
+    let mut found = false;
+    for pipe_idx in 0u8..16u8 {
+        let mut pipe_info = WINUSB_PIPE_INFORMATION::default();
+        if unsafe { WinUsb_QueryPipe(winusb_handle, 0, pipe_idx, &mut pipe_info) }.is_ok() {
+            if pipe_info.PipeId & 0x80 == 0 {
+                // bit 7 = IN, else OUT
+                out_pipe_id = pipe_info.PipeId;
+                found = true;
+                break;
+            }
+        }
+    }
+
+    if !found {
+        unsafe {
+            let _ = WinUsb_Free(winusb_handle);
+        }
+        unsafe {
+            let _ = CloseHandle(handle);
+        }
+        return Err(anyhow!("no se encontró endpoint OUT en el dispositivo USB"));
+    }
+
+    // Escribir usando WinUsb_WritePipe
     let mut written: u32 = 0;
     unsafe {
-        WriteFile(handle, Some(bytes), Some(&mut written), None)
+        WinUsb_WritePipe(winusb_handle, out_pipe_id, bytes, &mut written, None)
             .map_err(|e| anyhow!("error escribiendo al dispositivo USB: {e:?}"))?;
     }
 
+    unsafe {
+        let _ = WinUsb_Free(winusb_handle);
+    }
     unsafe {
         let _ = CloseHandle(handle);
     }

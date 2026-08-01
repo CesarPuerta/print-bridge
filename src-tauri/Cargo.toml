@@ -1,6 +1,6 @@
 [package]
 name = "soluciona-print-bridge"
-version = "0.7.4"
+version = "0.7.5"
 description = "Cegel Print Bridge — daemon local ESC/POS + Windows native USB"
 authors = ["Cegel"]
 edition = "2021"
@@ -50,6 +50,7 @@ uuid = { version = "1", features = ["v4"] }
 [target.'cfg(windows)'.dependencies]
 windows = { version = "0.58", features = [
   "Win32_Devices_DeviceAndDriverInstallation",
+  "Win32_Devices_Usb",
   "Win32_Storage_FileSystem",
   "Win32_Foundation",
   "Win32_Security",
