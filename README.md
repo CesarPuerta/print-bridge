@@ -92,6 +92,21 @@ Descargar siempre el instalador desde `https://www.cegel.app/descargas` (o el li
 
 > ⚠️ **Si la app muestra "Servidor no responde" en Windows**, ver [Troubleshooting Windows](#troubleshooting-windows).
 
+#### Driver USB para impresoras térmicas en Windows
+
+Muchas impresoras POS chinas (GA-E200I, Xprinter, SNBC, etc.) usan chips USB-to-Serial que Windows maneja con drivers propios. Para que el bridge pueda enviar datos crudos ESC/POS, el dispositivo necesita el driver **WinUSB**:
+
+1. Descargar [Zadig](https://zadig.akeo.ie) (herramienta gratuita de reemplazo de drivers USB)
+2. Conectar la impresora USB al PC
+3. Abrir Zadig → menú **Options → List All Devices**
+4. Seleccionar la impresora de la lista (ej: `GA-E200I`, `USB Printing Support` o el VID/PID `0471:0055`)
+5. En el campo "Driver" seleccionar **WinUSB** (o **libusbK**)
+6. Clic en **Replace Driver** → esperar a que termine
+7. **Desconectar y volver a conectar** la impresora USB
+8. En el bridge, clic en **Detectar impresora USB** → debería aparecer
+
+> 💡 Si el dispositivo no aparece en Zadig, asegurate de activar "List All Devices" en el menú Options. Si después del reemplazo la impresora no imprime, repetí el proceso seleccionando **libusbK** en lugar de WinUSB.
+
 ### Linux
 
 1. Descargar `cegel-print-bridge_*.AppImage`
@@ -319,6 +334,18 @@ soluciona-print-bridge/
 ---
 
 ## Troubleshooting Windows
+
+---
+
+### Impresora detectada pero no imprime en Windows
+
+Si el escaneo USB encuentra la impresora pero al hacer clic en **Probar** sale error
+("detectada pero no accesible" o "WinUsb_WritePipe falló"):
+
+1. **Instalar driver WinUSB con Zadig** — ver [Driver USB](#driver-usb-para-impresoras-térmicas-en-windows) arriba.
+2. Si ya instalaste Zadig y sigue fallando, probá con **libusbK** en lugar de WinUSB en Zadig.
+3. Verificá en **Device Manager** que el dispositivo no aparezca como "Unknown Device" con ⚠️.
+4. Desconectá y reconectá físicamente la impresora después de cada cambio de driver.
 
 ### "Servidor no responde" en la app de escritorio (Windows)
 
