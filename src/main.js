@@ -467,6 +467,7 @@ async function loadPrinters() {
 }
 
 async function testPrinter(id) {
+  $('printer-msg').textContent = '⏳ Enviando prueba...';
   try {
     const res = await fetch(`${BRIDGE_URL}/printers/test`, {
       method: 'POST',
@@ -479,8 +480,16 @@ async function testPrinter(id) {
     } else {
       $('printer-msg').textContent = `❌ ${data.error}`;
     }
-  } catch (err) {
-    $('printer-msg').textContent = `❌ ${err.message}`;
+  } catch (fetchErr) {
+    console.warn('fetch /printers/test falló, usando Tauri:', fetchErr?.message || fetchErr);
+    try {
+      await invoke('cmd_test_printer', { id });
+      $('printer-msg').textContent = '✅ Ticket de prueba enviado.';
+      loadPrinters();
+    } catch (tauriErr) {
+      console.error('cmd_test_printer falló:', tauriErr);
+      $('printer-msg').textContent = `❌ ${tauriErr?.message || tauriErr}`;
+    }
   }
 }
 
@@ -512,8 +521,16 @@ async function deletePrinter(id) {
     }
     $('printer-msg').textContent = 'Impresora eliminada.';
     await loadPrinters();
-  } catch (err) {
-    $('printer-msg').textContent = `❌ ${err.message}`;
+  } catch (fetchErr) {
+    console.warn('fetch /printers/delete falló, usando Tauri:', fetchErr?.message || fetchErr);
+    try {
+      await invoke('cmd_delete_printer', { id });
+      $('printer-msg').textContent = 'Impresora eliminada.';
+      await loadPrinters();
+    } catch (tauriErr) {
+      console.error('cmd_delete_printer falló:', tauriErr);
+      $('printer-msg').textContent = `❌ ${tauriErr?.message || tauriErr}`;
+    }
   }
 }
 

@@ -62,6 +62,8 @@ pub fn run() {
             cmd_test_usb,
             cmd_list_printers,
             cmd_configure_printer,
+            cmd_test_printer,
+            cmd_delete_printer,
         ])
         .setup(move |app| {
             // Habilitar autostart por defecto la primera vez.
@@ -291,6 +293,50 @@ fn cmd_list_printers() -> Result<serde_json::Value, String> {
         })
         .collect();
     Ok(serde_json::json!({ "printers": printers }))
+}
+
+/// Envía ticket de prueba a una impresora configurada — evita fetch() a localhost.
+#[tauri::command]
+fn cmd_test_printer(id: String) -> Result<bool, String> {
+    let cfg = config::load();
+    let printer = cfg
+        .find_printer(&id)
+        .ok_or_else(|| "Impresora no encontrada".to_string())?;
+    let test_ticket = config::generate_test_ticket(printer.paper_width_mm, printer.drawer_pin > 0);
+    let connection = types::Connection {
+        conn_type: match printer.connection.conn_type.as_str() {
+            "network" => types::ConnectionType::Network,
+            "serial" => types::ConnectionType::Serial,
+            _ => types::ConnectionType::Usb,
+        },
+        vendor_id: printer.connection.vendor_id.clone(),
+        product_id: printer.connection.product_id.clone(),
+        host: printer.connection.host.clone(),
+        port: printer.connection.port,
+        path: printer.connection.path.clone(),
+        baud_rate: None,
+        mac_address: None,
+    };
+    adapters::send_bytes(&connection, &test_ticket).map_err(|e| format!("{e}"))?;
+
+    // Marcar como online
+    let mut cfg = config::load();
+    if let Some(p) = cfg.find_printer_mut(&id) {
+        p.online = true;
+    }
+    config::save(&cfg).map_err(|e| format!("Error guardando: {e}"))?;
+    Ok(true)
+}
+
+/// Elimina una impresora configurada — evita fetch() a localhost.
+#[tauri::command]
+fn cmd_delete_printer(id: String) -> Result<bool, String> {
+    let mut cfg = config::load();
+    if !cfg.remove_printer(&id) {
+        return Err("Impresora no encontrada".into());
+    }
+    config::save(&cfg).map_err(|e| format!("Error guardando: {e}"))?;
+    Ok(true)
 }
 
 /// Configura una impresora (crea o actualiza) — evita fetch() a localhost en Windows.
