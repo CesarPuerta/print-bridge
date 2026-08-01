@@ -29,11 +29,31 @@ pub fn send(conn: &Connection, bytes: &[u8]) -> Result<()> {
     let handle = context
         .open_device_with_vid_pid(vendor_id, product_id)
         .ok_or_else(|| {
-            anyhow!(
-                "no se encontró impresora USB con vendor={:04x} product={:04x}",
-                vendor_id,
-                product_id
-            )
+            // Diagnóstico: ¿libusb puede ver el dispositivo pero no abrirlo?
+            let mut visible = false;
+            if let Ok(devices) = context.devices() {
+                for dev in devices.iter() {
+                    if let Ok(desc) = dev.device_descriptor() {
+                        if desc.vendor_id() == vendor_id && desc.product_id() == product_id {
+                            visible = true;
+                            break;
+                        }
+                    }
+                }
+            }
+            if visible {
+                anyhow!(
+                    "USB {:04x}:{:04x} detectada pero no accesible. Instalá el driver WinUSB con Zadig (zadig.akeo.ie), seleccioná la impresora y hacé clic en 'Replace Driver'. Luego desconectá y reconectá la impresora.",
+                    vendor_id,
+                    product_id
+                )
+            } else {
+                anyhow!(
+                    "no se encontró impresora USB con vendor={:04x} product={:04x}",
+                    vendor_id,
+                    product_id
+                )
+            }
         })?;
 
     // Auto-detach del kernel driver en todas las plataformas (Linux, macOS, Windows)
