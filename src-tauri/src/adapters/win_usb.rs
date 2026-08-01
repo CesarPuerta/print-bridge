@@ -68,7 +68,7 @@ pub fn send(conn: &Connection, bytes: &[u8]) -> Result<()> {
             FILE_SHARE_READ | FILE_SHARE_WRITE,
             None,
             OPEN_EXISTING,
-            FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OVERLAPPED.0,
+            FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OVERLAPPED,
             HANDLE::default(),
         )
     }
@@ -117,7 +117,7 @@ pub fn send(conn: &Connection, bytes: &[u8]) -> Result<()> {
     // Escribir usando WinUsb_WritePipe
     let mut written: u32 = 0;
     unsafe {
-        WinUsb_WritePipe(winusb_handle, out_pipe_id, bytes, &mut written, None)
+        WinUsb_WritePipe(winusb_handle, out_pipe_id, bytes, Some(&mut written), None)
             .map_err(|e| anyhow!("error escribiendo al dispositivo USB: {e:?}"))?;
     }
 
