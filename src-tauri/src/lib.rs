@@ -257,8 +257,8 @@ fn cmd_scan_usb() -> Result<Vec<adapters::usb_scan::UsbDeviceInfo>, String> {
 fn cmd_test_usb(vendor_id: String, product_id: String) -> Result<bool, String> {
     let connection = types::Connection {
         conn_type: types::ConnectionType::Usb,
-        vendor_id: Some(vendor_id),
-        product_id: Some(product_id),
+        vendor_id: Some(vendor_id.clone()),
+        product_id: Some(product_id.clone()),
         host: None,
         port: None,
         path: None,
@@ -266,8 +266,29 @@ fn cmd_test_usb(vendor_id: String, product_id: String) -> Result<bool, String> {
         mac_address: None,
     };
     let test_ticket = config::generate_test_ticket(80, false);
-    adapters::send_bytes(&connection, &test_ticket).map_err(|e| format!("{e}"))?;
-    Ok(true)
+
+    #[cfg(windows)]
+    {
+        let win_err = crate::adapters::win_usb::send(&connection, &test_ticket);
+        if win_err.is_ok() {
+            return Ok(true);
+        }
+        let usb_err = crate::adapters::usb::send(&connection, &test_ticket);
+        if usb_err.is_ok() {
+            return Ok(true);
+        }
+        return Err(format!(
+            "WinUSB: {}\nlibusb: {}",
+            win_err.unwrap_err(),
+            usb_err.unwrap_err()
+        ));
+    }
+
+    #[cfg(not(windows))]
+    {
+        crate::adapters::usb::send(&connection, &test_ticket).map_err(|e| format!("{e}"))?;
+        Ok(true)
+    }
 }
 
 /// Lista impresoras configuradas — evita fetch() a localhost.
