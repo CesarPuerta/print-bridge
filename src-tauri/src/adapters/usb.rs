@@ -180,9 +180,19 @@ pub fn send(conn: &Connection, bytes: &[u8]) -> Result<()> {
                 result.context("error escribiendo bulk al endpoint USB")?
             }
         }
-        TransferType::Interrupt => handle
-            .write_interrupt(endpoint, bytes, TIMEOUT)
-            .context("error escribiendo interrupt al endpoint USB")?,
+        TransferType::Interrupt => {
+            // Algunos chips USB-to-Serial chinos reportan interrupt pero funcionan con bulk.
+            handle
+                .write_interrupt(endpoint, bytes, TIMEOUT)
+                .or_else(|_| {
+                    log::debug!(
+                        "USB write_interrupt falló, intentando write_bulk en endpoint {:02x}",
+                        endpoint
+                    );
+                    handle.write_bulk(endpoint, bytes, TIMEOUT)
+                })
+                .context("error escribiendo al endpoint USB")?
+        }
         _ => unreachable!(),
     };
 
