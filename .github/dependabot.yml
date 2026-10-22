@@ -1,0 +1,51 @@
+version: 2
+
+# Dependabot NO audita el runtime de Node (su OpenSSL/V8/undici/brotli) ni la toolchain de Rust.
+# El audit de npm corre en .github/workflows/security.yml.
+
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: friday
+      time: '06:00'
+      timezone: America/Bogota
+    open-pull-requests-limit: 5
+    commit-message:
+      # commitlint (config-conventional) exige <type>(<scope>): subject en minúsculas
+      prefix: chore(deps)
+    groups:
+      dev-menores:
+        dependency-type: development
+        update-types: ['minor', 'patch']
+      prod-menores:
+        dependency-type: production
+        update-types: ['minor', 'patch']
+
+  - package-ecosystem: cargo
+    directory: /src-tauri
+    schedule:
+      interval: weekly
+      day: friday
+      time: '06:00'
+      timezone: America/Bogota
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: chore(deps)
+    groups:
+      # Tauri exige que el crate de Rust y el paquete JS de cada plugin vayan a la par:
+      # si llegan en PRs separados, el bridge compila pero falla en runtime.
+      tauri:
+        patterns: ['tauri', 'tauri-*']
+        update-types: ['minor', 'patch']
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: friday
+      time: '06:00'
+      timezone: America/Bogota
+    commit-message:
+      prefix: ci(deps)

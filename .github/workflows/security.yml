@@ -18,3 +18,24 @@ jobs:
       - uses: gitleaks/gitleaks-action@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  audit:
+    name: Audit npm
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Vulnerabilidades (runtime)
+        run: npm audit --omit=dev --audit-level=high
+
+      - name: Vulnerabilidades (tooling de build)
+        continue-on-error: true
+        run: npm audit --audit-level=high

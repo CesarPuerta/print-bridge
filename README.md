@@ -192,7 +192,7 @@ Para desvincular: ventana del bridge → doble clic en **Desvincular**.
 ### Requisitos
 
 - **Rust** 1.78+ (`curl https://sh.rustup.rs -sSf | sh`)
-- **Node** 20+
+- **Node** 24 LTS (ver `.nvmrc`; `engines` exige `>=24 <25`)
 - macOS: Xcode Command Line Tools (`xcode-select --install`)
 - Linux: `sudo apt install libusb-1.0-0-dev libudev-dev libssl-dev libwebkit2gtk-4.1-dev`
 - Windows: WebView2 (incluido en Win11) + MSVC Build Tools
