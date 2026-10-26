@@ -532,7 +532,7 @@ async fn resolve_connection(
 
 // Helpers
 
-fn printer_connection_to_types(p: &PrinterConfig) -> crate::types::Connection {
+pub(crate) fn printer_connection_to_types(p: &PrinterConfig) -> crate::types::Connection {
     crate::types::Connection {
         conn_type: connection_type_from_str(&p.connection.conn_type),
         host: p.connection.host.clone(),
@@ -545,7 +545,7 @@ fn printer_connection_to_types(p: &PrinterConfig) -> crate::types::Connection {
     }
 }
 
-fn connection_type_from_str(s: &str) -> crate::types::ConnectionType {
+pub(crate) fn connection_type_from_str(s: &str) -> crate::types::ConnectionType {
     match s {
         "network" => crate::types::ConnectionType::Network,
         "usb" => crate::types::ConnectionType::Usb,

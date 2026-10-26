@@ -11,6 +11,7 @@ use crate::config::PrinterConnectionConfig;
 pub mod adapters;
 pub mod config;
 pub mod pairing;
+pub mod print_jobs;
 pub mod server;
 pub mod types;
 
@@ -37,6 +38,14 @@ pub fn run() {
         let rt = tokio::runtime::Runtime::new().expect("no se pudo crear runtime Tokio (hb)");
         rt.block_on(async move {
             pairing::run_heartbeat().await;
+        });
+    });
+
+    // 3) Worker de la cola de impresión remota (celular/tablet → este PC).
+    std::thread::spawn(|| {
+        let rt = tokio::runtime::Runtime::new().expect("no se pudo crear runtime Tokio (jobs)");
+        rt.block_on(async move {
+            print_jobs::run_worker().await;
         });
     });
 
