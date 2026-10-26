@@ -1,6 +1,6 @@
 [package]
 name = "soluciona-print-bridge"
-version = "0.8.0"
+version = "0.8.1"
 description = "Cegel Print Bridge — daemon local ESC/POS + Windows native USB"
 authors = ["Cegel"]
 edition = "2021"
@@ -45,6 +45,7 @@ log = "0.4"
 env_logger = "0.11"
 dirs = "5"
 uuid = { version = "1", features = ["v4"] }
+tauri-plugin-single-instance = "2"
 
 # Windows native USB (sin libusb/Zadig)
 [target.'cfg(windows)'.dependencies]

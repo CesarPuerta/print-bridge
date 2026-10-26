@@ -19,12 +19,26 @@ const VERSION: &str = env!("CARGO_PKG_VERSION");
 const MAX_BODY_BYTES: usize = 5 * 1024 * 1024;
 
 pub struct AppState {
-    pub config: Mutex<BridgeConfig>,
+    /// Arc para poder compartir EXACTAMENTE esta config con el heartbeat
+    /// (`config::set_live`): lo que la UI muestra es lo que se reporta al backend.
+    pub config: Arc<Mutex<BridgeConfig>>,
+}
+
+pub type SharedState = Arc<AppState>;
+
+pub fn new_shared_state(config: BridgeConfig) -> SharedState {
+    Arc::new(AppState {
+        config: Arc::new(Mutex::new(config)),
+    })
 }
 
 pub fn build_router(config: BridgeConfig) -> Router {
-    let allowed: Vec<HeaderValue> = config
-        .allowed_origins
+    let allowed_origins = config.allowed_origins.clone();
+    build_router_with_state(new_shared_state(config), &allowed_origins)
+}
+
+pub fn build_router_with_state(state: SharedState, allowed_origins: &[String]) -> Router {
+    let allowed: Vec<HeaderValue> = allowed_origins
         .iter()
         .filter_map(|o| HeaderValue::from_str(o).ok())
         .collect();
@@ -37,10 +51,6 @@ pub fn build_router(config: BridgeConfig) -> Router {
             axum::http::HeaderName::from_static("x-cegel-business"),
         ])
         .allow_origin(AllowOrigin::list(allowed));
-
-    let state = Arc::new(AppState {
-        config: Mutex::new(config),
-    });
 
     Router::new()
         .route("/", get(health))
@@ -65,7 +75,19 @@ pub fn build_router(config: BridgeConfig) -> Router {
 
 pub async fn run(config: BridgeConfig) -> anyhow::Result<()> {
     let port = config.port;
-    let app = build_router(config.clone());
+    let allowed_origins = config.allowed_origins.clone();
+    let state = new_shared_state(config);
+    config::set_live(state.config.clone());
+    run_shared(state, port, allowed_origins).await
+}
+
+/// Levanta el servidor con un estado ya creado (lib.rs lo comparte con el heartbeat).
+pub async fn run_shared(
+    state: SharedState,
+    port: u16,
+    allowed_origins: Vec<String>,
+) -> anyhow::Result<()> {
+    let app = build_router_with_state(state.clone(), &allowed_origins);
     let addr_v4 = format!("127.0.0.1:{port}");
     let addr_v6 = format!("[::1]:{port}");
     log::info!("Print Bridge escuchando en http://{addr_v4} y http://{addr_v6}");
@@ -75,7 +97,7 @@ pub async fn run(config: BridgeConfig) -> anyhow::Result<()> {
 
     if let Ok(listener_v6) = listener_v6 {
         log::info!("IPv6 loopback (::1) habilitado");
-        let app_v6 = build_router(config);
+        let app_v6 = build_router_with_state(state, &allowed_origins);
         tokio::spawn(async move {
             if let Err(err) = axum::serve(listener_v6, app_v6).await {
                 log::error!("servidor IPv6 cayó: {err}");
@@ -268,6 +290,7 @@ async fn configure_printer(
     };
 
     let mut cfg = state.config.lock().await;
+    let before = cfg.clone();
 
     let printer = if req.id.is_empty() {
         let id = uuid::Uuid::new_v4().to_string();
@@ -294,6 +317,13 @@ async fn configure_printer(
 
     if let Err(e) = config::save(&cfg) {
         log::error!("error guardando config: {e}");
+        *cfg = before;
+        return Err(AppError::internal(format!(
+            "No se pudo guardar la impresora en {}. Revisa permisos de la carpeta .cegel: {e}",
+            config::config_path()
+                .map(|p| p.display().to_string())
+                .unwrap_or_else(|_| "~/.cegel/bridge.json".into())
+        )));
     }
 
     Ok(Json(printer_to_info(&printer)))
@@ -305,11 +335,16 @@ async fn delete_printer(
 ) -> Result<Json<serde_json::Value>, AppError> {
     log::info!("DELETE /printers/{} received", id);
     let mut cfg = state.config.lock().await;
+    let before = cfg.clone();
     if !cfg.remove_printer(&id) {
         return Err(AppError::not_found("impresora no encontrada"));
     }
     if let Err(e) = config::save(&cfg) {
         log::error!("error guardando config: {e}");
+        *cfg = before;
+        return Err(AppError::internal(format!(
+            "No se pudo guardar el cambio: {e}"
+        )));
     }
     Ok(Json(serde_json::json!({ "ok": true })))
 }
@@ -321,11 +356,16 @@ async fn delete_printer_body(
     let id = body["id"].as_str().unwrap_or("");
     log::info!("POST /printers/delete id={id}");
     let mut cfg = state.config.lock().await;
+    let before = cfg.clone();
     if !cfg.remove_printer(id) {
         return Err(AppError::not_found("impresora no encontrada"));
     }
     if let Err(e) = config::save(&cfg) {
         log::error!("error guardando config: {e}");
+        *cfg = before;
+        return Err(AppError::internal(format!(
+            "No se pudo guardar el cambio: {e}"
+        )));
     }
     Ok(Json(serde_json::json!({ "ok": true })))
 }

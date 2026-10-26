@@ -195,6 +195,21 @@ El estado se persiste en `~/.cegel/bridge.json`:
 
 Para desvincular: ventana del bridge → doble clic en **Desvincular**.
 
+### Si la impresora no aparece en la web («Impresoras»)
+
+1. La impresora tiene que estar **dentro de la app del bridge** (lista de impresoras), no
+   sólo conectada por USB al equipo.
+2. El bridge reporta sus impresoras al backend en cada heartbeat (**cada 60 s**). En
+   Ajustes → Impresoras debe aparecer en ≤1 minuto; si no, recarga la página (la lista se
+   cachea 5 minutos).
+3. **Una sola instancia del bridge por equipo**: desde 0.8.1 una segunda instancia enfoca
+   la existente y se cierra. Dos procesos abiertos pueden servir configuraciones distintas.
+4. Si al guardar la impresora ves un error de permisos sobre `~/.cegel/bridge.json`, la
+   impresora queda activa en memoria y **sí se reporta** (desde 0.8.1), pero no sobrevive a
+   un reinicio: corrige permisos/antivirus sobre esa carpeta.
+5. El bridge escribe un log con la ruta exacta de la config al arrancar: `config persistida
+en …`.
+
 ---
 
 ## Setup de desarrollo

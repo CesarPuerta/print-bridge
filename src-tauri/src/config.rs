@@ -3,6 +3,8 @@ use anyhow::{anyhow, Context, Result};
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
+use std::sync::{Arc, OnceLock};
+use tokio::sync::Mutex;
 
 /// Config persistida en ~/.cegel/bridge.json
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -162,6 +164,39 @@ fn merge_with_defaults(mut cfg: BridgeConfig) -> BridgeConfig {
     cfg
 }
 
+/// Configuración vigente del proceso.
+///
+/// El HTTP server y el heartbeat tienen que ver LO MISMO: si el heartbeat leyera sólo el
+/// disco, un fallo al guardar `bridge.json` (antivirus, carpeta protegida…) dejaría la
+/// impresora funcionando en memoria pero invisible para la web — el síntoma «la configuré
+/// en el bridge y no aparece en Impresoras».
+static LIVE: OnceLock<Arc<Mutex<BridgeConfig>>> = OnceLock::new();
+
+/// Registra la configuración viva (la misma que sirve el HTTP server).
+pub fn set_live(cfg: Arc<Mutex<BridgeConfig>>) {
+    let _ = LIVE.set(cfg);
+}
+
+fn live() -> Option<Arc<Mutex<BridgeConfig>>> {
+    LIVE.get().cloned()
+}
+
+/// Config vigente: la de memoria si el server ya arrancó, si no la del disco.
+pub async fn snapshot() -> BridgeConfig {
+    match live() {
+        Some(cfg) => cfg.lock().await.clone(),
+        None => load(),
+    }
+}
+
+/// Refleja en memoria un cambio ya persistido desde fuera del HTTP server
+/// (comandos de la UI de Tauri, pairing, unpair).
+pub async fn sync_live(cfg: BridgeConfig) {
+    if let Some(live) = live() {
+        *live.lock().await = cfg;
+    }
+}
+
 pub fn save(cfg: &BridgeConfig) -> Result<()> {
     let path = config_path()?;
     let raw = serde_json::to_string_pretty(cfg)?;
@@ -296,4 +331,41 @@ fn chrono_now() -> String {
         hours,
         minutes
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// La config que sirve la UI es la misma que reporta el heartbeat, aunque el guardado en
+    /// disco falle (antivirus, carpeta protegida): antes el heartbeat leía sólo el archivo y
+    /// la impresora quedaba invisible para la web.
+    #[tokio::test]
+    async fn snapshot_usa_la_config_viva_aunque_el_disco_no_la_tenga() {
+        let live = Arc::new(Mutex::new(BridgeConfig::default()));
+        set_live(live.clone());
+
+        {
+            let mut guard = live.lock().await;
+            guard.printers.push(PrinterConfig {
+                id: "printer-1".into(),
+                name: "CEGEL".into(),
+                paper_width_mm: 80,
+                drawer_pin: 2,
+                connection: PrinterConnectionConfig {
+                    conn_type: "usb".into(),
+                    host: None,
+                    port: None,
+                    vendor_id: Some("0471".into()),
+                    product_id: Some("0055".into()),
+                    path: None,
+                },
+                online: true,
+            });
+        }
+
+        let snapshot = snapshot().await;
+        assert_eq!(snapshot.printers.len(), 1);
+        assert_eq!(snapshot.printers[0].name, "CEGEL");
+    }
 }

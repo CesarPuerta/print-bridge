@@ -22,12 +22,22 @@ pub fn run() {
     let cfg = config::load();
     let pairing_state = pairing::new_state();
 
+    if let Ok(path) = config::config_path() {
+        // Deja rastro de dónde se persiste: soporte lo necesita cuando «no aparece la
+        // impresora» en la web.
+        log::info!("config persistida en {}", path.display());
+    }
+
     // 1) Servidor HTTP local en una tarea Tokio dedicada.
-    let server_cfg = cfg.clone();
+    // El estado se comparte con el heartbeat: lo que la UI muestra es lo que se reporta.
+    let bridge_port = cfg.port;
+    let allowed_origins = cfg.allowed_origins.clone();
+    let bridge_state = server::new_shared_state(cfg.clone());
+    config::set_live(bridge_state.config.clone());
     std::thread::spawn(move || {
         let rt = tokio::runtime::Runtime::new().expect("no se pudo crear runtime Tokio");
         rt.block_on(async move {
-            if let Err(err) = server::run(server_cfg).await {
+            if let Err(err) = server::run_shared(bridge_state, bridge_port, allowed_origins).await {
                 log::error!("servidor HTTP cayó: {err}");
             }
         });
@@ -50,6 +60,16 @@ pub fn run() {
     });
 
     tauri::Builder::default()
+        // Debe ir PRIMERO: una segunda instancia enfoca la existente y sale. Dos procesos
+        // abiertos compiten por el puerto 9101 y pueden servir configuraciones distintas
+        // (una guardada en otra sesión), lo que deja impresoras "invisibles".
+        .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
+            use tauri::Manager;
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.show();
+                let _ = window.set_focus();
+            }
+        }))
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_process::init())
@@ -145,8 +165,10 @@ fn cmd_get_config() -> Result<SafeConfig, String> {
 }
 
 #[tauri::command]
-fn cmd_save_config(cfg: config::BridgeConfig) -> Result<(), String> {
-    config::save(&cfg).map_err(|e| e.to_string())
+async fn cmd_save_config(cfg: config::BridgeConfig) -> Result<(), String> {
+    config::save(&cfg).map_err(|e| e.to_string())?;
+    config::sync_live(cfg).await;
+    Ok(())
 }
 
 #[derive(serde::Serialize)]
@@ -241,7 +263,9 @@ async fn cmd_unpair() -> Result<(), String> {
     cfg.paired_business_id = None;
     cfg.printers.clear();
     cfg.device_id = defaults.device_id;
-    config::save(&cfg).map_err(|e| e.to_string())
+    config::save(&cfg).map_err(|e| e.to_string())?;
+    config::sync_live(cfg).await;
+    Ok(())
 }
 
 #[tauri::command]
@@ -302,8 +326,8 @@ fn cmd_test_usb(vendor_id: String, product_id: String) -> Result<bool, String> {
 
 /// Lista impresoras configuradas — evita fetch() a localhost.
 #[tauri::command]
-fn cmd_list_printers() -> Result<serde_json::Value, String> {
-    let cfg = config::load();
+async fn cmd_list_printers() -> Result<serde_json::Value, String> {
+    let cfg = config::snapshot().await;
     let printers: Vec<serde_json::Value> = cfg
         .printers
         .iter()
@@ -327,8 +351,8 @@ fn cmd_list_printers() -> Result<serde_json::Value, String> {
 
 /// Envía ticket de prueba a una impresora configurada — evita fetch() a localhost.
 #[tauri::command]
-fn cmd_test_printer(id: String) -> Result<bool, String> {
-    let cfg = config::load();
+async fn cmd_test_printer(id: String) -> Result<bool, String> {
+    let cfg = config::snapshot().await;
     let printer = cfg
         .find_printer(&id)
         .ok_or_else(|| "Impresora no encontrada".to_string())?;
@@ -350,28 +374,30 @@ fn cmd_test_printer(id: String) -> Result<bool, String> {
     adapters::send_bytes(&connection, &test_ticket).map_err(|e| format!("{e}"))?;
 
     // Marcar como online
-    let mut cfg = config::load();
+    let mut cfg = config::snapshot().await;
     if let Some(p) = cfg.find_printer_mut(&id) {
         p.online = true;
     }
     config::save(&cfg).map_err(|e| format!("Error guardando: {e}"))?;
+    config::sync_live(cfg).await;
     Ok(true)
 }
 
 /// Elimina una impresora configurada — evita fetch() a localhost.
 #[tauri::command]
-fn cmd_delete_printer(id: String) -> Result<bool, String> {
-    let mut cfg = config::load();
+async fn cmd_delete_printer(id: String) -> Result<bool, String> {
+    let mut cfg = config::snapshot().await;
     if !cfg.remove_printer(&id) {
         return Err("Impresora no encontrada".into());
     }
     config::save(&cfg).map_err(|e| format!("Error guardando: {e}"))?;
+    config::sync_live(cfg).await;
     Ok(true)
 }
 
 /// Configura una impresora (crea o actualiza) — evita fetch() a localhost en Windows.
 #[tauri::command(rename_all = "camelCase")]
-fn cmd_configure_printer(
+async fn cmd_configure_printer(
     id: Option<String>,
     name: String,
     paper_width_mm: Option<u8>,
@@ -379,7 +405,7 @@ fn cmd_configure_printer(
     vendor_id: Option<String>,
     product_id: Option<String>,
 ) -> Result<serde_json::Value, String> {
-    let mut cfg = config::load();
+    let mut cfg = config::snapshot().await;
     let connection = if let (Some(vid), Some(pid)) = (&vendor_id, &product_id) {
         PrinterConnectionConfig {
             conn_type: "usb".into(),
@@ -434,6 +460,7 @@ fn cmd_configure_printer(
     };
 
     config::save(&cfg).map_err(|e| format!("Error guardando: {e}"))?;
+    config::sync_live(cfg).await;
 
     Ok(serde_json::json!({
         "id": printer.id,

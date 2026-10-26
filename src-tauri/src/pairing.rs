@@ -185,6 +185,7 @@ pub async fn run_pairing(state: SharedState) -> Result<()> {
                 new_cfg.device_token = Some(token);
                 new_cfg.paired_business_id = d.business_id;
                 config::save(&new_cfg).context("no se pudo persistir bridge.json")?;
+                config::sync_live(new_cfg.clone()).await;
                 write_state(
                     &state,
                     PairingState {
@@ -226,7 +227,9 @@ fn write_state(state: &SharedState, value: PairingState) {
 pub async fn run_heartbeat() {
     loop {
         tokio::time::sleep(HEARTBEAT_INTERVAL).await;
-        let cfg = config::load();
+        // Se reporta la MISMA config que sirve el HTTP server: si el guardado en disco
+        // falló, la impresora igual llega al backend (antes se reportaba el disco).
+        let cfg = config::snapshot().await;
         let Some(token) = cfg.device_token.clone() else {
             continue;
         };
