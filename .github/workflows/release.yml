@@ -1,10 +1,17 @@
 name: Release Cegel Print Bridge
 
-# Se dispara cuando empujas un tag tipo v0.1.0, v1.2.3, etc.
+# Se dispara al empujar un tag tipo v0.1.0, v1.2.3, etc. También se puede lanzar a mano
+# desde la pestaña Actions (workflow_dispatch) para recompilar sin crear un tag nuevo.
 on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag a publicar (ej: v0.8.0). Vacío = v + versión de package.json'
+        required: false
+        type: string
 
 # Permitimos al action crear releases y subir binarios.
 permissions:
@@ -39,6 +46,28 @@ jobs:
           node-version: 24
           cache: 'npm'
 
+      # El tag no existe en una ejecución manual: se resuelve una sola vez y se usa en el
+      # release, en el nombre y en la limpieza de artefactos.
+      - name: Resolve release tag
+        id: release
+        shell: bash
+        env:
+          INPUT_TAG: ${{ inputs.tag }}
+        run: |
+          TAG="${INPUT_TAG:-}"
+          if [ -z "$TAG" ] && [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+            TAG="${GITHUB_REF_NAME}"
+          fi
+          if [ -z "$TAG" ]; then
+            TAG="v$(node -p "require('./package.json').version")"
+          fi
+          case "$TAG" in
+            v*) ;;
+            *) TAG="v$TAG" ;;
+          esac
+          echo "Publicando $TAG"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
         with:
@@ -70,8 +99,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tagName: ${{ github.ref_name }}
-          releaseName: 'Cegel Print Bridge ${{ github.ref_name }}'
+          tagName: ${{ steps.release.outputs.tag }}
+          releaseName: 'Cegel Print Bridge ${{ steps.release.outputs.tag }}'
           releaseBody: |
             ## 📥 ¿Cuál descargar?
 
@@ -96,7 +125,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          TAG="${{ github.ref_name }}"
+          TAG="${{ steps.release.outputs.tag }}"
           for asset in $(gh release view "$TAG" --repo ${{ github.repository }} --json assets -q '.assets[].name'); do
             case "$asset" in
               *.app.tar.gz|latest.json)

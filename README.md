@@ -276,12 +276,20 @@ Tauri Updater puede chequear releases de un repositorio GitHub público y descar
 
 ### Release final e instaladores
 
-1. Actualiza la versión en `package.json` y `src-tauri/tauri.conf.json`.
+1. Actualiza la versión en **los tres** archivos: `package.json`, `src-tauri/tauri.conf.json` y
+   `src-tauri/Cargo.toml` (este último es el que el bridge reporta en el heartbeat).
 2. Ejecuta una prueba local: `npm run dev`.
 3. Genera los bundles: `npm run build:unsigned` en macOS y `npm run build` en Windows/Linux.
 4. Revisa `src-tauri/target/release/bundle/`.
-5. Etiqueta la versión: `git tag v0.1.1 && git push origin v0.1.1`.
+5. Etiqueta la versión y empuja el tag:
+   `git tag -a v0.1.1 -m "v0.1.1" && git push origin v0.1.1`.
 6. GitHub Actions publica los instaladores desde `.github/workflows/release.yml`.
+
+> **Sin tag no hay build.** El workflow sólo escucha `push` de tags `v*`; subir el commit a
+> `main` no genera release. Si necesitas recompilar sin cambiar versión, lánzalo a mano:
+> `gh workflow run release.yml --repo CesarPuerta/print-bridge -f tag=v0.1.1`
+> (o desde Actions → _Release Cegel Print Bridge_ → _Run workflow_).
+> En macOS con `tag.gpgSign=true` y sin llave GPG, usa `git -c tag.gpgSign=false tag -a …`.
 
 ---
 
