@@ -36,7 +36,7 @@
     "@tauri-apps/api": "^2.0.0",
     "@tauri-apps/plugin-autostart": "^2.0.0",
     "@tauri-apps/plugin-opener": "^2.0.0",
-    "@tauri-apps/plugin-shell": "^2.0.0"
+    "@tauri-apps/plugin-shell": "^2.6.0"
   },
   "lint-staged": {
     "*.{js,jsx,mjs,cjs}": [
