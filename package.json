@@ -33,10 +33,10 @@
     "prettier": "^3.9.6"
   },
   "dependencies": {
-    "@tauri-apps/api": "^2.0.0",
+    "@tauri-apps/api": "^2.12.5",
     "@tauri-apps/plugin-autostart": "^2.0.0",
-    "@tauri-apps/plugin-opener": "^2.0.0",
-    "@tauri-apps/plugin-shell": "^2.0.0"
+    "@tauri-apps/plugin-opener": "^2.7.3",
+    "@tauri-apps/plugin-shell": "^2.6.0"
   },
   "lint-staged": {
     "*.{js,jsx,mjs,cjs}": [
