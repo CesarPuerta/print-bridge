@@ -45,7 +45,7 @@ El backend de Cegel genera los bytes ESC/POS (incluyendo QR DIAN, corte y pulso 
 ### Dos caminos de impresión
 
 1. **Mismo equipo (PC de la caja):** la web detecta el bridge en loopback y hace `POST /print` directo (inmediato).
-2. **Celular, tablet u otro computador:** no pueden hablar con `127.0.0.1` del equipo de la caja (y una página HTTPS no puede hacer `fetch` a HTTP local). La web deja el tiquete en la cola del API (`POST /api/print-jobs`), el servidor le adjunta los bytes y este bridge los recoge cada 3 s con su token de dispositivo (`GET /api/devices/print-jobs`) y confirma el resultado (`POST /api/devices/print-jobs/:id/ack`).
+2. **Celular, tablet u otro computador:** no pueden hablar con `127.0.0.1` del equipo de la caja (y una página HTTPS no puede hacer `fetch` a HTTP local). La web deja el tiquete en la cola del API (`POST /api/print-jobs`), el servidor le adjunta los bytes y este bridge los recoge cada 1 s con su token de dispositivo (`GET /api/devices/print-jobs`) y confirma el resultado (`POST /api/devices/print-jobs/:id/ack`).
 
 El servidor sólo encola si hay un equipo con heartbeat reciente (≤2 min) que reporte esa impresora; si no, responde 409 y la web abre el comprobante imprimible. Un trabajo reclamado que no se confirma vuelve a la cola (máx. 3 intentos) y se purga a las 24 h.
 

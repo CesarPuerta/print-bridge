@@ -13,8 +13,8 @@ use base64::{engine::general_purpose, Engine};
 use serde::Deserialize;
 use std::time::Duration;
 
-/// Latido de la cola: 3 s mantiene la impresión «inmediata» sin inundar el API.
-const POLL_INTERVAL: Duration = Duration::from_secs(3);
+/// Latido de la cola: 1 s reduce la espera del papel a ~1 s sin inundar el API.
+const POLL_INTERVAL: Duration = Duration::from_secs(1);
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(15);
 const ACK_ATTEMPTS: u32 = 3;
 
@@ -42,11 +42,11 @@ fn api_url(cfg: &BridgeConfig, path: &str) -> String {
 /// Loop infinito: se lanza en su propio hilo al arrancar la app.
 pub async fn run_worker() {
     loop {
-        tokio::time::sleep(POLL_INTERVAL).await;
         if let Err(err) = poll_once().await {
             // Sin red o API caído es normal en una caja: se reintenta al siguiente ciclo.
             log::debug!("cola de impresión: {err}");
         }
+        tokio::time::sleep(POLL_INTERVAL).await;
     }
 }
 

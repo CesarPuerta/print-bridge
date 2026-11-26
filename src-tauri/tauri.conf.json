@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Cegel Print Bridge",
-  "version": "0.8.1",
+  "version": "0.8.2",
   "identifier": "app.cegel.printbridge",
   "build": {
     "beforeDevCommand": "",
@@ -38,7 +38,7 @@
     ],
     "category": "Utility",
     "shortDescription": "Daemon local para imprimir tickets ESC/POS desde la app de Cegel.",
-    "longDescription": "Cegel Print Bridge corre en segundo plano en tu equipo, recibe los trabajos de impresión enviados por la app web (www.cegel.app) y los entrega a la impresora térmica conectada por USB, red o serial. También acciona el cajón monedero."
+    "longDescription": "Cegel Print Bridge corre en segundo plano en tu equipo, recibe los trabajos de impresi\u00f3n enviados por la app web (www.cegel.app) y los entrega a la impresora t\u00e9rmica conectada por USB, red o serial. Tambi\u00e9n acciona el caj\u00f3n monedero."
   },
   "plugins": {}
 }

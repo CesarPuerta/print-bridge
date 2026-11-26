@@ -1,9 +1,9 @@
 {
   "name": "soluciona-print-bridge",
-  "version": "0.8.1",
+  "version": "0.8.2",
   "private": true,
   "type": "module",
-  "description": "Cegel Print Bridge — daemon local que recibe trabajos ESC/POS desde la web app y los envía a impresoras térmicas (USB / TCP / Serial) y abre el cajón monedero.",
+  "description": "Cegel Print Bridge \u2014 daemon local que recibe trabajos ESC/POS desde la web app y los env\u00eda a impresoras t\u00e9rmicas (USB / TCP / Serial) y abre el caj\u00f3n monedero.",
   "scripts": {
     "tauri": "node scripts/run-tauri.mjs",
     "dev": "node scripts/dev.mjs",
