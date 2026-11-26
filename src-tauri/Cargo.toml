@@ -31,7 +31,7 @@ tower-http = { version = "0.5", features = ["cors", "limit"] }
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 
 # Hostname
-gethostname = "0.4"
+gethostname = "1.1"
 
 # Adapters
 rusb = { version = "0.9", features = ["vendored"] }  # Compila libusb desde fuente (estático, sin dep de Homebrew)
